@@ -1,11 +1,11 @@
 {
-  "name": "agent-consultation-mcp",
-  "version": "1.5.2",
+  "name": "ai-consultation-mcp",
+  "version": "1.0.0",
   "type": "module",
   "description": "MCP server for consulting other AI models (DeepSeek, OpenAI) for alternative perspectives during coding sessions",
   "main": "./dist/index.js",
   "bin": {
-    "agent-consultation-mcp": "./dist/index.js"
+    "ai-consultation-mcp": "./dist/index.js"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -31,11 +31,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/menesekinci/agent-consultation-mcp"
+    "url": "https://github.com/menesekinci/ai-consultation-mcp"
   },
-  "homepage": "https://github.com/menesekinci/agent-consultation-mcp#readme",
+  "homepage": "https://github.com/menesekinci/ai-consultation-mcp#readme",
   "bugs": {
-    "url": "https://github.com/menesekinci/agent-consultation-mcp/issues"
+    "url": "https://github.com/menesekinci/ai-consultation-mcp/issues"
   },
   "files": [
     "dist",

@@ -13,7 +13,7 @@ import type { Config } from '../types/index.js';
  * Get the config directory path (in user's home directory)
  */
 function getConfigDir(): string {
-  return path.join(os.homedir(), '.agent-consultation-mcp');
+  return path.join(os.homedir(), '.ai-consultation-mcp');
 }
 
 /**

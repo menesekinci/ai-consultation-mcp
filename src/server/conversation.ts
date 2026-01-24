@@ -7,7 +7,7 @@ import { MAX_MESSAGES_LIMIT, CONVERSATION_TIMEOUT_MS } from '../config/index.js'
 import type { Message, ModelType } from '../types/index.js';
 
 // Config directory in user's home (consistent across all invocations)
-const CONFIG_DIR = path.join(os.homedir(), '.agent-consultation-mcp');
+const CONFIG_DIR = path.join(os.homedir(), '.ai-consultation-mcp');
 
 // Ensure config directory exists
 if (!fs.existsSync(CONFIG_DIR)) {
@@ -52,23 +52,27 @@ export interface Conversation {
 
 /**
  * Manages active conversations with file persistence
+ *
+ * Note: Multiple MCP instances may run concurrently (different agents).
+ * Each instance only tracks its own conversations in memory.
+ * File storage is append-only for history - we don't clear other instances' data.
  */
 export class ConversationManager {
   private conversations: Map<string, Conversation> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Archive any leftover active conversations from previous session
-    this.archiveStaleFromPreviousSession();
-    // Start cleanup interval
+    // Load any existing conversations from file into memory
+    this.loadExistingConversations();
+    // Start cleanup interval for timeout handling
     this.startCleanup();
   }
 
   /**
-   * Archive all active conversations from previous session
-   * Called on startup to clean up orphaned conversations
+   * Load existing active conversations from file
+   * This allows the Web UI to see conversations from all instances
    */
-  private archiveStaleFromPreviousSession(): void {
+  private loadExistingConversations(): void {
     try {
       if (!fs.existsSync(CONVERSATIONS_FILE)) {
         return;
@@ -77,13 +81,7 @@ export class ConversationManager {
       const data = fs.readFileSync(CONVERSATIONS_FILE, 'utf-8');
       const serialized: SerializedConversation[] = JSON.parse(data);
 
-      if (serialized.length === 0) {
-        return;
-      }
-
-      console.log(`[ConversationManager] Archiving ${serialized.length} conversations from previous session`);
-
-      // Archive each conversation
+      // Load into memory map
       for (const conv of serialized) {
         const conversation: Conversation = {
           id: conv.id,
@@ -93,13 +91,14 @@ export class ConversationManager {
           createdAt: new Date(conv.createdAt),
           lastActivityAt: new Date(conv.lastActivityAt),
         };
-        this.archiveConversation(conversation, 'session_restart');
+        this.conversations.set(conversation.id, conversation);
       }
 
-      // Clear the active conversations file
-      fs.writeFileSync(CONVERSATIONS_FILE, '[]', 'utf-8');
+      if (serialized.length > 0) {
+        console.log(`[ConversationManager] Loaded ${serialized.length} existing conversations`);
+      }
     } catch (error) {
-      console.error('[ConversationManager] Failed to archive previous session conversations:', error);
+      console.error('[ConversationManager] Failed to load existing conversations:', error);
     }
   }
 

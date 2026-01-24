@@ -1,6 +1,6 @@
 # Agent Consultation MCP
 
-[![npm version](https://img.shields.io/npm/v/agent-consultation-mcp.svg)](https://www.npmjs.com/package/agent-consultation-mcp)
+[![npm version](https://img.shields.io/npm/v/ai-consultation-mcp.svg)](https://www.npmjs.com/package/ai-consultation-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An MCP (Model Context Protocol) server that enables AI agents to get a **second opinion** from other AI models, enriching their perspectives during work.
@@ -20,7 +20,7 @@ An MCP (Model Context Protocol) server that enables AI agents to get a **second 
 
 ```bash
 # 1. Auto-install to all detected AI tools
-npx agent-consultation-mcp --install
+npx ai-consultation-mcp --install
 
 # 2. Configure your API key in the Web UI that opens automatically
 # Done! Restart your AI tools and start using
@@ -34,11 +34,11 @@ The easiest way to install and use the MCP server:
 
 ```bash
 # Auto-install to all detected AI tools
-npx agent-consultation-mcp --install
+npx ai-consultation-mcp --install
 
 # Or install globally
-npm install -g agent-consultation-mcp
-agent-consultation-mcp --install
+npm install -g ai-consultation-mcp
+ai-consultation-mcp --install
 ```
 
 ### Option 2: From GitHub
@@ -47,8 +47,8 @@ Clone the repository and build from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/menesekinci/agent-consultation-mcp.git
-cd agent-consultation-mcp
+git clone https://github.com/menesekinci/ai-consultation-mcp.git
+cd ai-consultation-mcp
 
 # Install dependencies
 npm install
@@ -91,7 +91,7 @@ Add to `~/.claude/mcp.json`:
   "mcpServers": {
     "agent-consultation": {
       "command": "npx",
-      "args": ["-y", "agent-consultation-mcp"]
+      "args": ["-y", "ai-consultation-mcp"]
     }
   }
 }
@@ -102,7 +102,7 @@ Add to `~/.claude/mcp.json`:
 ### Setting Up API Keys
 
 ```bash
-npx agent-consultation-mcp --config
+npx ai-consultation-mcp --config
 ```
 
 This opens a web UI where you can:
@@ -175,8 +175,8 @@ Claude will then call the `consult_agent` tool with your question and provide th
 
 ```bash
 # Clone the repo
-git clone https://github.com/menesekinci/agent-consultation-mcp.git
-cd agent-consultation-mcp
+git clone https://github.com/menesekinci/ai-consultation-mcp.git
+cd ai-consultation-mcp
 
 # Install dependencies
 npm install
