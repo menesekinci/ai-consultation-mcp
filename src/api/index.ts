@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import open from 'open';
 import { getConfigManager } from '../config/index.js';
 import { logger } from '../utils/index.js';
+import { ensurePortAvailable } from '../utils/portKiller.js';
 import { configRoutes } from './routes/config.js';
 import { providerRoutes } from './routes/providers.js';
 import chatRoutes from './routes/chat.js';
@@ -32,6 +33,12 @@ export interface ConfigUIOptions {
 export async function startConfigUI(options: ConfigUIOptions = {}): Promise<void> {
   const port = options.port ?? DEFAULT_PORT;
   const shouldOpenBrowser = options.openBrowser ?? true;
+
+  // Check if port is available, try to free it if not
+  const portCheck = await ensurePortAvailable(port, { autoKill: true, silent: false });
+  if (!portCheck.available) {
+    throw new Error(`Port ${port} is in use and could not be freed. Try a different port with --port ${port + 1}`);
+  }
 
   // Ensure config is loaded
   const configManager = getConfigManager();
@@ -97,10 +104,16 @@ export async function startConfigUI(options: ConfigUIOptions = {}): Promise<void
 
       // Open browser
       if (shouldOpenBrowser) {
-        open(url).catch((err) => {
-          logger.warn('Failed to open browser', { error: err.message });
-          console.log(`Please open ${url} in your browser`);
-        });
+        open(url)
+          .then(() => {
+            console.log(`   ✅ Browser opened successfully\n`);
+          })
+          .catch((err) => {
+            logger.warn('Failed to open browser', { error: err.message });
+            console.log(`   ⚠️  Could not open browser automatically\n`);
+            console.log(`   💡 Please open the URL manually in your browser`);
+            console.log(`   💡 Or run: npx ai-consultation-mcp --config\n`);
+          });
       }
 
       resolve();
@@ -108,9 +121,10 @@ export async function startConfigUI(options: ConfigUIOptions = {}): Promise<void
 
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
+        // This should rarely happen now since we check port availability first
         logger.error(`Port ${port} is already in use`);
-        console.error(`\nError: Port ${port} is already in use.`);
-        console.error(`Try a different port: npx agent-consultation-mcp --config --port ${port + 1}\n`);
+        console.error(`\n❌ Error: Port ${port} is still in use.`);
+        console.error(`   Try a different port: npx ai-consultation-mcp --config --port ${port + 1}\n`);
       }
       reject(err);
     });

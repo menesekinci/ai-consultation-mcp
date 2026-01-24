@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
   <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script>
     tailwind.config = {
@@ -50,6 +51,10 @@
             'slide-in': 'slideIn 0.4s ease-out forwards',
             'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
             'float': 'float 6s ease-in-out infinite',
+            'float-slow': 'floatSlow 20s ease-in-out infinite',
+            'float-medium': 'floatMedium 15s ease-in-out infinite',
+            'float-fast': 'floatFast 12s ease-in-out infinite',
+            'spin-slow': 'spinSlow 30s linear infinite',
           },
           keyframes: {
             fadeIn: {
@@ -71,6 +76,28 @@
             float: {
               '0%, 100%': { transform: 'translateY(0px)' },
               '50%': { transform: 'translateY(-10px)' },
+            },
+            floatSlow: {
+              '0%': { transform: 'translate(0, 0) rotate(0deg)' },
+              '25%': { transform: 'translate(30px, -40px) rotate(90deg)' },
+              '50%': { transform: 'translate(-20px, -60px) rotate(180deg)' },
+              '75%': { transform: 'translate(-40px, -20px) rotate(270deg)' },
+              '100%': { transform: 'translate(0, 0) rotate(360deg)' },
+            },
+            floatMedium: {
+              '0%': { transform: 'translate(0, 0) rotate(0deg)' },
+              '33%': { transform: 'translate(-50px, 30px) rotate(120deg)' },
+              '66%': { transform: 'translate(40px, -30px) rotate(240deg)' },
+              '100%': { transform: 'translate(0, 0) rotate(360deg)' },
+            },
+            floatFast: {
+              '0%': { transform: 'translate(0, 0) rotate(0deg)' },
+              '50%': { transform: 'translate(60px, 40px) rotate(180deg)' },
+              '100%': { transform: 'translate(0, 0) rotate(360deg)' },
+            },
+            spinSlow: {
+              '0%': { transform: 'rotate(0deg)' },
+              '100%': { transform: 'rotate(360deg)' },
             },
           },
         }
@@ -154,6 +181,35 @@
       overflow: hidden;
     }
 
+    /* Floating geometric shapes */
+    .floating-shapes {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .floating-shape {
+      position: absolute;
+      opacity: 0.04;
+      will-change: transform;
+    }
+
+    .floating-shape.accent {
+      opacity: 0.06;
+    }
+
+    /* Reduced motion support */
+    @media (prefers-reduced-motion: reduce) {
+      .floating-shape {
+        animation: none !important;
+      }
+    }
+
     /* Card relative positioning for hover effect */
     .glass-card {
       position: relative;
@@ -161,7 +217,64 @@
   </style>
 </head>
 <body class="bg-surface text-neutral-100 min-h-screen font-sans noise-bg gradient-mesh">
-  <div x-data="configApp()" x-init="init()" x-cloak class="max-w-5xl mx-auto px-6 py-12">
+  <!-- Floating Geometric Shapes Background -->
+  <div class="floating-shapes">
+    <!-- Squares -->
+    <svg class="floating-shape animate-float-slow" style="top: 10%; left: 5%; width: 40px; height: 40px;">
+      <rect width="40" height="40" fill="currentColor" class="text-accent-500"/>
+    </svg>
+    <svg class="floating-shape animate-float-medium" style="top: 60%; left: 15%; width: 25px; height: 25px;">
+      <rect width="25" height="25" fill="currentColor" class="text-neutral-400"/>
+    </svg>
+    <svg class="floating-shape animate-float-fast" style="top: 30%; right: 10%; width: 35px; height: 35px;">
+      <rect width="35" height="35" fill="currentColor" class="text-accent-400" rx="4"/>
+    </svg>
+
+    <!-- Circles -->
+    <svg class="floating-shape animate-float-medium" style="top: 20%; right: 20%; width: 50px; height: 50px;">
+      <circle cx="25" cy="25" r="25" fill="currentColor" class="text-accent-500"/>
+    </svg>
+    <svg class="floating-shape animate-float-slow" style="top: 75%; left: 25%; width: 30px; height: 30px;">
+      <circle cx="15" cy="15" r="15" fill="currentColor" class="text-neutral-500"/>
+    </svg>
+    <svg class="floating-shape animate-float-fast" style="top: 45%; right: 5%; width: 20px; height: 20px;">
+      <circle cx="10" cy="10" r="10" fill="currentColor" class="text-accent-400"/>
+    </svg>
+
+    <!-- Triangles -->
+    <svg class="floating-shape animate-float-fast" style="top: 15%; left: 40%; width: 35px; height: 35px;">
+      <polygon points="17.5,0 35,35 0,35" fill="currentColor" class="text-accent-500"/>
+    </svg>
+    <svg class="floating-shape animate-float-slow" style="top: 80%; right: 30%; width: 45px; height: 45px;">
+      <polygon points="22.5,0 45,45 0,45" fill="currentColor" class="text-neutral-400"/>
+    </svg>
+
+    <!-- Hexagons -->
+    <svg class="floating-shape animate-float-medium accent" style="top: 5%; right: 35%; width: 40px; height: 40px;">
+      <polygon points="20,0 40,10 40,30 20,40 0,30 0,10" fill="currentColor" class="text-accent-500"/>
+    </svg>
+    <svg class="floating-shape animate-float-fast" style="top: 55%; left: 8%; width: 30px; height: 30px;">
+      <polygon points="15,0 30,7.5 30,22.5 15,30 0,22.5 0,7.5" fill="currentColor" class="text-neutral-500"/>
+    </svg>
+
+    <!-- Diamonds -->
+    <svg class="floating-shape animate-float-slow" style="top: 35%; left: 20%; width: 30px; height: 30px;">
+      <polygon points="15,0 30,15 15,30 0,15" fill="currentColor" class="text-accent-400"/>
+    </svg>
+    <svg class="floating-shape animate-float-medium" style="top: 70%; right: 15%; width: 25px; height: 25px;">
+      <polygon points="12.5,0 25,12.5 12.5,25 0,12.5" fill="currentColor" class="text-neutral-400"/>
+    </svg>
+
+    <!-- Pentagons -->
+    <svg class="floating-shape animate-float-fast accent" style="top: 90%; left: 50%; width: 35px; height: 35px;">
+      <polygon points="17.5,0 35,13 28,35 7,35 0,13" fill="currentColor" class="text-accent-500"/>
+    </svg>
+    <svg class="floating-shape animate-float-slow" style="top: 25%; right: 40%; width: 28px; height: 28px;">
+      <polygon points="14,0 28,10.4 22.4,28 5.6,28 0,10.4" fill="currentColor" class="text-neutral-500"/>
+    </svg>
+  </div>
+
+  <div x-data="configApp()" x-init="init()" x-cloak class="max-w-5xl mx-auto px-6 py-12 relative z-10">
 
     <!-- Header -->
     <header class="mb-8 opacity-0 animate-fade-in-up">
@@ -169,7 +282,7 @@
         <div class="relative">
           <!-- Animated glow ring -->
           <div class="absolute inset-0 bg-accent-500/20 rounded-full blur-xl animate-pulse-glow"></div>
-          <div class="relative w-16 h-16 bg-gradient-to-br from-accent-400 to-accent-600 rounded-2xl flex items-center justify-center transform rotate-12 hover:rotate-0 transition-transform duration-500">
+          <div class="relative w-16 h-16 bg-gradient-to-br from-accent-400 to-accent-600 rounded-2xl flex items-center justify-center transform hover:rotate-12 transition-transform duration-500">
             <svg class="w-8 h-8 text-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
             </svg>
@@ -183,6 +296,25 @@
         <span class="text-accent-500"> MCP</span>
       </h1>
       <p class="text-neutral-500 text-center mt-3 text-lg">Enabling agents to get a second opinion</p>
+
+      <!-- Connection Status Indicator -->
+      <div class="flex items-center justify-center mt-4 gap-4">
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-surface-50/50 rounded-full border border-surface-200/50">
+          <span
+            class="w-2 h-2 rounded-full"
+            :class="connected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"
+          ></span>
+          <span class="text-xs font-medium" :class="connected ? 'text-emerald-400' : 'text-red-400'" x-text="connected ? 'Connected' : 'Disconnected'"></span>
+        </div>
+        <template x-if="connected && clientCount > 0">
+          <div class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-50/50 rounded-full border border-surface-200/50">
+            <svg class="w-3.5 h-3.5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+            </svg>
+            <span class="text-xs font-medium text-accent-400" x-text="clientCount + ' client' + (clientCount > 1 ? 's' : '')"></span>
+          </div>
+        </template>
+      </div>
     </header>
 
     <!-- Tab Navigation -->
@@ -485,20 +617,35 @@
               </div>
             </div>
           </div>
-          <button
-            @click="loadChatHistory()"
-            :disabled="loadingHistory"
-            class="px-4 py-2 bg-surface-200 hover:bg-surface-300 rounded-xl text-sm font-medium transition-all duration-300 disabled:opacity-50 flex items-center"
-          >
-            <svg x-show="!loadingHistory" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            <svg x-show="loadingHistory" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Refresh
-          </button>
+          <div class="flex items-center gap-2">
+            <!-- Delete All Archived Button -->
+            <template x-if="historyStats.archived > 0">
+              <button
+                @click="deleteAllArchived()"
+                class="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-medium transition-all duration-300 flex items-center"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                Delete Archived
+              </button>
+            </template>
+            <!-- Refresh Button -->
+            <button
+              @click="loadChatHistory()"
+              :disabled="loadingHistory"
+              class="px-4 py-2 bg-surface-200 hover:bg-surface-300 rounded-xl text-sm font-medium transition-all duration-300 disabled:opacity-50 flex items-center"
+            >
+              <svg x-show="!loadingHistory" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <svg x-show="loadingHistory" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
         <!-- Empty State -->
@@ -562,7 +709,21 @@
                     </svg>
                     <span class="text-[11px]" x-text="conv.messageCount"></span>
                   </div>
-                  <span class="text-[10px] text-neutral-600" x-text="new Date(conv.createdAt).toLocaleDateString()"></span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-neutral-600" x-text="new Date(conv.createdAt).toLocaleDateString()"></span>
+                    <!-- Delete button for archived conversations -->
+                    <template x-if="conv.status === 'archived'">
+                      <button
+                        @click.stop="deleteConversation(conv.id)"
+                        class="p-1 rounded hover:bg-red-500/20 text-neutral-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete conversation"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </template>
+                  </div>
                 </div>
 
                 <!-- Hover indicator -->
@@ -622,134 +783,125 @@
 
       <!-- README TAB -->
       <div x-show="activeTab === 'readme'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
-        <section>
-          <!-- Hero Section -->
-          <div class="glass-card rounded-2xl p-8 mb-8 text-center">
-            <div class="w-20 h-20 bg-gradient-to-br from-accent-400 to-accent-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <svg class="w-10 h-10 text-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        <section class="max-w-3xl mx-auto">
+          <!-- External Links -->
+          <div class="flex items-center justify-center gap-3 mb-8">
+              <a href="https://www.npmjs.com/package/ai-consultation-mcp" target="_blank" rel="noopener noreferrer"
+                 class="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-all">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M0 7.334v8h6.666v1.332H12v-1.332h12v-8H0zm6.666 6.664H5.334v-4H3.999v4H1.335V8.667h5.331v5.331zm4 0v1.336H8.001V8.667h5.334v5.332h-2.669v-.001zm12.001 0h-1.33v-4h-1.336v4h-1.335v-4h-1.33v4h-2.671V8.667h8.002v5.331z"/>
+                </svg>
+                npm
+              </a>
+              <a href="https://github.com/menesekinci/ai-consultation-mcp" target="_blank" rel="noopener noreferrer"
+                 class="flex items-center gap-2 px-4 py-2 bg-neutral-500/10 hover:bg-neutral-500/20 text-neutral-300 rounded-lg text-sm font-medium transition-all">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                GitHub
+              </a>
+              <a href="https://x.com/menesekinci_ai" target="_blank" rel="noopener noreferrer"
+                 class="flex items-center gap-2 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-lg text-sm font-medium transition-all">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                @menesekinci_ai
+              </a>
+          </div>
+
+          <!-- What is this MCP? -->
+          <div class="glass-card rounded-2xl p-6 mb-6">
+            <h3 class="text-lg font-semibold text-neutral-100 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
-            </div>
-            <h2 class="text-3xl font-bold text-neutral-100 mb-4">Agent Consultation MCP</h2>
-            <p class="text-lg text-neutral-400 max-w-2xl mx-auto leading-relaxed">
-              Enabling AI agents to get a <span class="text-accent-400 font-semibold">second opinion</span> to enrich their perspectives during work.
+              What is Agent Consultation MCP?
+            </h3>
+            <p class="text-neutral-400 text-sm leading-relaxed mb-4">
+              This MCP enables AI agents to consult with other AI models during their workflow.
+              When an agent faces a complex decision, architectural choice, or debugging challenge,
+              it can request a <span class="text-accent-400 font-medium">second opinion</span> from a different model.
+            </p>
+            <p class="text-neutral-500 text-sm leading-relaxed">
+              Think of it as pair programming between AI models - each bringing different training,
+              reasoning patterns, and perspectives to the problem.
             </p>
           </div>
 
-          <!-- Purpose Section -->
-          <div class="glass-card rounded-2xl p-6 mb-6">
-            <div class="flex items-start gap-4">
-              <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-semibold text-neutral-100 mb-2">Purpose</h3>
-                <p class="text-neutral-400 leading-relaxed">
-                  When AI agents work on complex tasks, having a single perspective can lead to blind spots or suboptimal solutions.
-                  This MCP server enables AI coding agents to consult with other AI models (DeepSeek, ChatGPT, Gemini)
-                  to get alternative viewpoints, validate approaches, or explore different problem-solving strategies.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- How It Works Section -->
-          <div class="glass-card rounded-2xl p-6 mb-6">
-            <div class="flex items-start gap-4">
-              <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-semibold text-neutral-100 mb-2">How It Works</h3>
-                <div class="space-y-3 text-neutral-400">
-                  <div class="flex items-start gap-3">
-                    <span class="w-6 h-6 bg-accent-500/20 text-accent-400 rounded-full flex items-center justify-center text-sm font-semibold shrink-0">1</span>
-                    <p>An AI coding agent encounters a complex problem or wants to validate an approach.</p>
-                  </div>
-                  <div class="flex items-start gap-3">
-                    <span class="w-6 h-6 bg-accent-500/20 text-accent-400 rounded-full flex items-center justify-center text-sm font-semibold shrink-0">2</span>
-                    <p>Using <code class="bg-surface-200 px-1.5 py-0.5 rounded text-xs font-mono text-accent-300">consult_agent</code> tool, it starts a consultation with another model.</p>
-                  </div>
-                  <div class="flex items-start gap-3">
-                    <span class="w-6 h-6 bg-accent-500/20 text-accent-400 rounded-full flex items-center justify-center text-sm font-semibold shrink-0">3</span>
-                    <p>The consulted model provides its perspective, suggestions, or alternative solutions.</p>
-                  </div>
-                  <div class="flex items-start gap-3">
-                    <span class="w-6 h-6 bg-accent-500/20 text-accent-400 rounded-full flex items-center justify-center text-sm font-semibold shrink-0">4</span>
-                    <p>The original agent integrates this second opinion into its work, leading to richer outcomes.</p>
-                  </div>
+          <!-- Recommendations -->
+          <div class="glass-card rounded-2xl p-6 mb-6 border border-accent-500/20">
+            <h3 class="text-lg font-semibold text-neutral-100 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+              </svg>
+              Recommended Usage
+            </h3>
+            <div class="space-y-3">
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-emerald-500/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
                 </div>
+                <p class="text-neutral-400 text-sm"><span class="text-neutral-200 font-medium">Planning Phase:</span> Let agents consult during architecture decisions and implementation planning</p>
               </div>
-            </div>
-          </div>
-
-          <!-- Benefits Section -->
-          <div class="glass-card rounded-2xl p-6 mb-6">
-            <div class="flex items-start gap-4">
-              <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0">
-                <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-semibold text-neutral-100 mb-4">Benefits</h3>
-                <div class="grid gap-4 md:grid-cols-2">
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <h4 class="font-semibold text-neutral-200 mb-1">Reduced Blind Spots</h4>
-                    <p class="text-sm text-neutral-500">Different models have different training data and reasoning patterns.</p>
-                  </div>
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <h4 class="font-semibold text-neutral-200 mb-1">Better Problem Solving</h4>
-                    <p class="text-sm text-neutral-500">Multiple perspectives often lead to more creative solutions.</p>
-                  </div>
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <h4 class="font-semibold text-neutral-200 mb-1">Validation</h4>
-                    <p class="text-sm text-neutral-500">Get confirmation or alternative suggestions for critical decisions.</p>
-                  </div>
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <h4 class="font-semibold text-neutral-200 mb-1">Specialized Expertise</h4>
-                    <p class="text-sm text-neutral-500">DeepSeek Reasoner excels at step-by-step reasoning tasks.</p>
-                  </div>
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-emerald-500/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
                 </div>
+                <p class="text-neutral-400 text-sm"><span class="text-neutral-200 font-medium">Debugging:</span> When stuck on complex bugs, a fresh perspective often reveals the issue</p>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-emerald-500/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </div>
+                <p class="text-neutral-400 text-sm"><span class="text-neutral-200 font-medium">Code Review:</span> Validate implementation choices before committing</p>
               </div>
             </div>
           </div>
 
-          <!-- MCP Tools Section -->
-          <div class="glass-card rounded-2xl p-6">
-            <div class="flex items-start gap-4">
-              <div class="w-12 h-12 bg-accent-500/10 rounded-xl flex items-center justify-center shrink-0">
+          <!-- Open Source -->
+          <div class="glass-card rounded-2xl p-6 mb-6 bg-gradient-to-br from-surface-50/80 to-surface-100/40">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 bg-accent-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
                 <svg class="w-6 h-6 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
                 </svg>
               </div>
-              <div class="flex-1">
-                <h3 class="text-xl font-semibold text-neutral-100 mb-4">Available MCP Tools</h3>
-                <div class="space-y-4">
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <div class="flex items-center gap-2 mb-2">
-                      <code class="bg-accent-500/20 text-accent-300 px-2 py-1 rounded text-sm font-mono">consult_agent</code>
-                      <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Primary</span>
-                    </div>
-                    <p class="text-sm text-neutral-400">Start a new consultation or continue an existing one. Supports multi-turn conversations.</p>
-                  </div>
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <div class="flex items-center gap-2 mb-2">
-                      <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-sm font-mono">continue_conversation</code>
-                    </div>
-                    <p class="text-sm text-neutral-400">Continue an existing consultation with follow-up messages.</p>
-                  </div>
-                  <div class="bg-surface-50/50 rounded-xl p-4 border border-surface-200/30">
-                    <div class="flex items-center gap-2 mb-2">
-                      <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-sm font-mono">end_conversation</code>
-                    </div>
-                    <p class="text-sm text-neutral-400">End a consultation and archive the conversation for reference.</p>
-                  </div>
+              <div>
+                <h4 class="font-semibold text-neutral-100 mb-1">Open Source & Community Driven</h4>
+                <p class="text-neutral-500 text-sm">MIT Licensed. Contributions, feature requests, and new provider integrations are welcome!</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- MCP Tools -->
+          <div class="glass-card rounded-2xl p-6">
+            <h3 class="text-lg font-semibold text-neutral-100 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+              </svg>
+              Available Tools
+            </h3>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <div class="flex items-center gap-3">
+                  <code class="bg-accent-500/20 text-accent-300 px-2 py-1 rounded text-xs font-mono">consult_agent</code>
+                  <span class="text-xs text-emerald-400">Primary</span>
                 </div>
+                <span class="text-xs text-neutral-500">Start a consultation</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">continue_conversation</code>
+                <span class="text-xs text-neutral-500">Follow-up messages</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">end_conversation</code>
+                <span class="text-xs text-neutral-500">Archive conversation</span>
               </div>
             </div>
           </div>
@@ -761,7 +913,7 @@
         <div class="flex items-center justify-center space-x-2 text-neutral-600">
           <span class="font-mono text-sm">Agent Consultation MCP</span>
           <span class="text-accent-500">•</span>
-          <span class="font-mono text-sm">v1.1.0</span>
+          <span class="font-mono text-sm">v2.1.0</span>
         </div>
         <p class="text-neutral-600 text-sm mt-2">Configuration changes are saved automatically</p>
       </footer>
@@ -1008,6 +1160,11 @@
         // Conversation detail modal
         selectedConversation: null,
         showConversationModal: false,
+        // Socket.io for real-time updates
+        socket: null,
+        connected: false,
+        hasShownConnectedToast: false,
+        clientCount: 0,
 
         // Computed: total pages
         get totalPages() {
@@ -1050,8 +1207,59 @@
           document.body.style.overflow = '';
         },
 
+        // Delete a single conversation
+        deleteConversation(id) {
+          if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
+            return;
+          }
+
+          if (this.socket?.connected) {
+            this.socket.emit('conversation:delete', id, (success) => {
+              if (success) {
+                this.showToast('Conversation deleted', 'success');
+                // Remove from local list
+                this.chatHistory = this.chatHistory.filter(c => c.id !== id);
+                this.historyStats.archived = Math.max(0, this.historyStats.archived - 1);
+              } else {
+                this.showToast('Failed to delete conversation', 'error');
+              }
+            });
+          }
+        },
+
+        // Delete all archived conversations
+        deleteAllArchived() {
+          const archivedCount = this.historyStats.archived;
+          if (!confirm(`Are you sure you want to delete all ${archivedCount} archived conversations? This cannot be undone.`)) {
+            return;
+          }
+
+          if (this.socket?.connected) {
+            const archivedConvs = this.chatHistory.filter(c => c.status === 'archived');
+            let deleted = 0;
+
+            archivedConvs.forEach(conv => {
+              this.socket.emit('conversation:delete', conv.id, (success) => {
+                if (success) {
+                  deleted++;
+                  this.chatHistory = this.chatHistory.filter(c => c.id !== conv.id);
+                }
+
+                // Show result after all deletions attempted
+                if (deleted === archivedConvs.length) {
+                  this.showToast(`Deleted ${deleted} archived conversations`, 'success');
+                  this.historyStats.archived = 0;
+                }
+              });
+            });
+          }
+        },
+
         async init() {
           try {
+            // Connect to daemon via WebSocket
+            this.connectSocket();
+
             await this.loadData();
             // Also load chat history on init
             this.loadChatHistory();
@@ -1060,6 +1268,98 @@
             this.loadError = error.message || 'Failed to initialize';
           } finally {
             this.loading = false;
+          }
+        },
+
+        // Socket.io connection and event handling
+        connectSocket() {
+          try {
+            this.socket = io(window.location.origin, {
+              transports: ['websocket'],
+              reconnection: true,
+              reconnectionDelay: 1000,
+              reconnectionAttempts: 10,
+              query: { type: 'webui' },
+            });
+
+            this.socket.on('connect', () => {
+              console.log('[WebUI] Connected to daemon');
+              this.connected = true;
+              if (!this.hasShownConnectedToast) {
+                this.hasShownConnectedToast = true;
+                this.showToast('Connected to server', 'success');
+              }
+            });
+
+            this.socket.on('disconnect', (reason) => {
+              console.log('[WebUI] Disconnected:', reason);
+              this.connected = false;
+              if (reason !== 'io client disconnect') {
+                this.showToast('Disconnected from server', 'error');
+              }
+            });
+
+            this.socket.on('connect_error', (err) => {
+              console.error('[WebUI] Connection error:', err);
+              this.connected = false;
+            });
+
+            // Real-time conversation events
+            this.socket.on('conversation:created', (conv) => {
+              console.log('[WebUI] New conversation:', conv.id);
+              this.loadChatHistory(); // Refresh the list
+              this.showToast('New conversation started', 'info');
+            });
+
+            this.socket.on('conversation:message', (data) => {
+              console.log('[WebUI] New message in:', data.conversationId);
+              // Update conversation in history if visible
+              const conv = this.chatHistory.find(c => c.id === data.conversationId);
+              if (conv) {
+                conv.messages = conv.messages || [];
+                // Check for duplicate before pushing
+                const exists = conv.messages.some(m => m.id === data.message.id);
+                if (!exists) {
+                  conv.messages.push(data.message);
+                  conv.messageCount = conv.messages.length;
+                }
+              }
+              // Update selected conversation if open
+              if (this.selectedConversation?.id === data.conversationId) {
+                this.selectedConversation.messages = this.selectedConversation.messages || [];
+                const exists = this.selectedConversation.messages.some(m => m.id === data.message.id);
+                if (!exists) {
+                  this.selectedConversation.messages.push(data.message);
+                }
+              }
+            });
+
+            this.socket.on('conversation:ended', (data) => {
+              console.log('[WebUI] Conversation ended:', data.conversationId);
+              this.loadChatHistory(); // Refresh to move to archived
+              this.showToast('Conversation archived', 'info');
+            });
+
+            this.socket.on('conversation:deleted', (data) => {
+              console.log('[WebUI] Conversation deleted:', data.conversationId);
+              this.chatHistory = this.chatHistory.filter(c => c.id !== data.conversationId);
+              if (this.selectedConversation?.id === data.conversationId) {
+                this.closeConversationModal();
+              }
+            });
+
+            this.socket.on('config:updated', (config) => {
+              console.log('[WebUI] Config updated');
+              this.loadData(); // Refresh config
+              this.showToast('Configuration updated', 'info');
+            });
+
+            this.socket.on('clients:count', (count) => {
+              this.clientCount = count;
+            });
+
+          } catch (err) {
+            console.error('[WebUI] Failed to connect:', err);
           }
         },
 
@@ -1247,11 +1547,25 @@
               throw new Error('Failed to fetch history');
             }
             const data = await res.json();
-            this.chatHistory = data.conversations || [];
+            // Combine active and archived conversations
+            const allConversations = [
+              ...(data.active || []).map(c => ({ ...c, status: 'active' })),
+              ...(data.archived || []).map(c => ({ ...c, status: 'archived' })),
+            ];
+            // Sort by updatedAt descending
+            allConversations.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+            this.chatHistory = allConversations;
             this.historyStats = {
               active: data.activeCount || 0,
               archived: data.archivedCount || 0,
             };
+            // Update selectedConversation if it's open (to keep it in sync)
+            if (this.selectedConversation) {
+              const updated = allConversations.find(c => c.id === this.selectedConversation.id);
+              if (updated) {
+                this.selectedConversation = updated;
+              }
+            }
           } catch (error) {
             console.error('Failed to load chat history:', error);
             // Silent fail - don't show error toast for history

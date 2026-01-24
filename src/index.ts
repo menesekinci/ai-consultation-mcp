@@ -15,15 +15,33 @@ import { initializeProviders } from './providers/index.js';
 import { startConfigUI, openWebUI } from './api/index.js';
 import { installToAllTools, printInstallSummary, SUPPORTED_TOOLS } from './installer/index.js';
 
+// Proxy imports for new architecture
+import { createDaemonClient, openWebUI as openProxyWebUI } from './proxy/daemon-client.js';
+import {
+  handleConsultAgent,
+  handleContinueConversation,
+  handleEndConversation,
+} from './proxy/bridge.js';
+
 /**
  * Parse CLI arguments
  */
-function parseArgs(): { mode: 'mcp' | 'config' | 'install'; port?: number } {
+function parseArgs(): { mode: 'mcp' | 'config' | 'install' | 'daemon' | 'legacy'; port?: number } {
   const args = process.argv.slice(2);
 
   // Check for install mode
   if (args.includes('--install') || args.includes('install') || args.includes('-i')) {
     return { mode: 'install' };
+  }
+
+  // Check for daemon mode (start daemon directly)
+  if (args.includes('--daemon') || args.includes('daemon') || args.includes('-d')) {
+    return { mode: 'daemon' };
+  }
+
+  // Check for legacy mode (old standalone behavior)
+  if (args.includes('--legacy') || args.includes('--standalone')) {
+    return { mode: 'legacy' };
   }
 
   // Check for config mode
@@ -45,17 +63,21 @@ function parseArgs(): { mode: 'mcp' | 'config' | 'install'; port?: number } {
   if (args.includes('--help') || args.includes('-h')) {
     const toolNames = SUPPORTED_TOOLS.map((t) => t.name).join(', ');
     console.log(`
-Agent Consultation MCP - Get second opinions from DeepSeek Reasoner
+AI Consultation MCP - Get second opinions from DeepSeek Reasoner
 
 Usage:
-  npx agent-consultation-mcp           Start MCP server (stdio transport)
-  npx agent-consultation-mcp --install Auto-detect & install to all AI tools
-  npx agent-consultation-mcp --config  Open configuration UI in browser
-  npx agent-consultation-mcp --help    Show this help message
+  npx ai-consultation-mcp           Start MCP proxy (connects to central daemon)
+  npx ai-consultation-mcp --install Auto-detect & install to all AI tools
+  npx ai-consultation-mcp --config  Open configuration UI in browser
+  npx ai-consultation-mcp --daemon  Start the central daemon directly
+  npx ai-consultation-mcp --legacy  Use legacy standalone mode (no daemon)
+  npx ai-consultation-mcp --help    Show this help message
 
 Options:
   --install, -i        Auto-detect installed AI tools and add MCP to each
   --config, -c         Open configuration UI to manage API keys
+  --daemon, -d         Start central daemon (auto-started by proxy if needed)
+  --legacy             Use legacy standalone mode (bypasses daemon)
   --port <number>, -p  Set port for config UI (default: 3456)
   --help, -h           Show this help message
 
@@ -63,9 +85,9 @@ Supported AI Tools:
   ${toolNames}
 
 Quick Start:
-  1. npx agent-consultation-mcp --install  (auto-detects all tools)
+  1. npx ai-consultation-mcp --install  (auto-detects all tools)
   2. Restart your AI tools to load the MCP
-  3. npx agent-consultation-mcp --config   (configure API key)
+  3. npx ai-consultation-mcp --config   (configure API key)
   4. Start using in any configured tool!
 
 Supported Models:
@@ -80,6 +102,12 @@ Consultation Modes:
   - validatePlan    - Implementation plan review and validation
   - explainConcept  - Learn concepts with examples and analogies
   - general         - General second opinion (default)
+
+Architecture:
+  The MCP now uses a central daemon architecture for real-time sync:
+  - Daemon: Central server with SQLite storage and WebSocket
+  - Proxy: Lightweight stdio ↔ WebSocket bridge for each IDE
+  - Web UI: Real-time updates across all connected tools
 `);
     process.exit(0);
   }
@@ -88,30 +116,251 @@ Consultation Modes:
 }
 
 /**
+ * Start proxy MCP server (connects to daemon)
+ */
+async function startProxyMode(): Promise<void> {
+  console.error('[MCP] Starting AI Consultation MCP Proxy...');
+
+  const daemonClient = createDaemonClient();
+
+  const server = new McpServer({
+    name: 'ai-consultation',
+    version: '2.1.0',
+  });
+
+  // Register consult_agent tool
+  server.tool(
+    'consult_agent',
+    'Get a second opinion from another AI model. The daemon provides real-time sync across all connected tools.',
+    {
+      question: z.string().describe('The problem, approach, or decision you want a second opinion on'),
+      mode: z
+        .enum(CONSULTATION_MODES)
+        .optional()
+        .describe('Consultation focus: debug, analyzeCode, reviewArchitecture, validatePlan, explainConcept, or general'),
+      context: z
+        .string()
+        .optional()
+        .describe('Supporting context: code snippets, error messages, your current approach'),
+    },
+    async (args) => {
+      openProxyWebUI().catch(() => {});
+      try {
+        const socket = await daemonClient.getSocket();
+        const result = await handleConsultAgent(socket, args);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Register continue_conversation tool
+  server.tool(
+    'continue_conversation',
+    'Continue a multi-turn consultation',
+    {
+      conversationId: z.string().uuid().describe('The conversation ID from a previous consult_agent call'),
+      message: z.string().describe('Your follow-up question or response'),
+    },
+    async (args) => {
+      openProxyWebUI().catch(() => {});
+      try {
+        const socket = await daemonClient.getSocket();
+        const result = await handleContinueConversation(socket, args);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Register end_conversation tool
+  server.tool(
+    'end_conversation',
+    'End a consultation session and archive it',
+    {
+      conversationId: z.string().uuid().describe('The conversation ID to end and archive'),
+    },
+    async (args) => {
+      openProxyWebUI().catch(() => {});
+      try {
+        const socket = await daemonClient.getSocket();
+        const result = await handleEndConversation(socket, args);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('[MCP] Proxy connected and ready');
+}
+
+/**
+ * Start legacy standalone MCP server (no daemon)
+ */
+async function startLegacyMode(): Promise<void> {
+  const configManager = getConfigManager();
+  await configManager.init();
+  await initializeProviders();
+
+  logger.info('Starting Agent Consultation MCP Server (Legacy Mode)');
+
+  const server = new McpServer({
+    name: 'agent-consultation',
+    version: '2.1.0',
+  });
+
+  server.tool(
+    'consult_agent',
+    'Get a second opinion from another AI model (legacy standalone mode)',
+    {
+      question: z.string().describe('The problem, approach, or decision you want a second opinion on'),
+      mode: z.enum(CONSULTATION_MODES).optional().describe('Consultation focus'),
+      context: z.string().optional().describe('Supporting context'),
+    },
+    async (args) => {
+      openWebUI().catch(() => {});
+      try {
+        const result = await consultAgent(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'continue_conversation',
+    'Continue a multi-turn consultation (legacy mode)',
+    {
+      conversationId: z.string().uuid().describe('The conversation ID'),
+      message: z.string().describe('Your follow-up question'),
+    },
+    async (args) => {
+      openWebUI().catch(() => {});
+      try {
+        const result = await continueConversation(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'end_conversation',
+    'End a consultation session (legacy mode)',
+    {
+      conversationId: z.string().uuid().describe('The conversation ID to end'),
+    },
+    async (args) => {
+      openWebUI().catch(() => {});
+      try {
+        const result = await endConversation(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  logger.info('MCP Server connected and ready (Legacy Mode)');
+}
+
+/**
  * Initialize and start the MCP server
  */
 async function main(): Promise<void> {
   const { mode, port } = parseArgs();
 
-  // Install mode - auto-detect and install to all tools
+  // Install mode
   if (mode === 'install') {
-    console.log('🔧 Agent Consultation MCP - Multi-Tool Installer\n');
+    console.log('🔧 AI Consultation MCP - Multi-Tool Installer\n');
     console.log('Scanning for installed AI tools...\n');
 
     const summary = installToAllTools();
     printInstallSummary(summary);
 
-    // If any tools were installed, offer to open config UI
     if (summary.installed.length > 0 || summary.skipped.length > 0) {
-      console.log('Opening configuration UI...\n');
+      console.log('🌐 Starting configuration UI...\n');
       try {
         await startConfigUI({ openBrowser: true });
-      } catch {
-        console.log('💡 Run "npx agent-consultation-mcp --config" to configure API keys.\n');
+      } catch (error) {
+        console.log('\n⚠️  Could not start configuration UI');
+        if (error instanceof Error) {
+          console.log(`   Error: ${error.message}`);
+        }
+        console.log('\n💡 To configure API keys later, run:');
+        console.log('   npx ai-consultation-mcp --config\n');
         process.exit(0);
       }
     } else {
+      console.log('\n💡 No supported AI tools found.');
+      console.log('   Install one of the supported tools and run this installer again.\n');
       process.exit(0);
+    }
+    return;
+  }
+
+  // Daemon mode - start daemon directly
+  if (mode === 'daemon') {
+    // Dynamically import daemon to avoid circular deps
+    const { initDatabase } = await import('./daemon/database.js');
+    const { createDaemonServer } = await import('./daemon/server.js');
+    const { acquireLock, removeLockFile, isDaemonRunning, runMigration } = await import('./daemon/utils/index.js');
+
+    const existingPort = isDaemonRunning();
+    if (existingPort) {
+      console.log(`Daemon already running on port ${existingPort}`);
+      process.exit(0);
+    }
+
+    const daemonPort = 3456;
+    if (!acquireLock(daemonPort)) {
+      console.error('Failed to acquire lock');
+      process.exit(1);
+    }
+
+    try {
+      initDatabase();
+      runMigration();
+      const server = createDaemonServer(daemonPort);
+      await server.start();
+      console.log(`Daemon started on http://127.0.0.1:${daemonPort}`);
+    } catch (error) {
+      console.error('Failed to start daemon:', error);
+      removeLockFile();
+      process.exit(1);
     }
     return;
   }
@@ -127,156 +376,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  // MCP server mode (default)
-  // Initialize configuration
-  const configManager = getConfigManager();
-  await configManager.init();
+  // Legacy mode
+  if (mode === 'legacy') {
+    await startLegacyMode();
+    return;
+  }
 
-  // Initialize providers
-  await initializeProviders();
-
-  logger.info('Starting Agent Consultation MCP Server');
-
-  // Create MCP server
-  const server = new McpServer({
-    name: 'agent-consultation',
-    version: '2.0.0',
-  });
-
-  // Register consult_agent tool
-  server.tool(
-    'consult_agent',
-    'Get a second opinion from another AI model to enrich your perspective. Use this when you want critical feedback, alternative approaches, or to challenge your assumptions. The consulted model will act as a critical reviewer, not a yes-man.',
-    {
-      question: z.string().describe('The problem, approach, or decision you want a second opinion on'),
-      mode: z
-        .enum(CONSULTATION_MODES)
-        .optional()
-        .describe('Consultation focus: debug (error analysis), analyzeCode (code review), reviewArchitecture (design decisions), validatePlan (plan critique), explainConcept (learning), or general (open discussion)'),
-      context: z
-        .string()
-        .optional()
-        .describe('Supporting context: code snippets, error messages, your current approach, or relevant background'),
-    },
-    async (args) => {
-      // Open Web UI in browser when tool is triggered
-      openWebUI().catch(() => {});
-
-      try {
-        const result = await consultAgent(args);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('consult_agent failed', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Register continue_conversation tool
-  server.tool(
-    'continue_conversation',
-    'Continue a multi-turn consultation to dig deeper, ask follow-up questions, or explore alternative perspectives further',
-    {
-      conversationId: z
-        .string()
-        .uuid()
-        .describe('The conversation ID from a previous consult_agent call'),
-      message: z.string().describe('Your follow-up question, clarification request, or response to their feedback'),
-    },
-    async (args) => {
-      // Open Web UI in browser when tool is triggered
-      openWebUI().catch(() => {});
-
-      try {
-        const result = await continueConversation(args);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('continue_conversation failed', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Register end_conversation tool
-  server.tool(
-    'end_conversation',
-    'End a consultation session and archive it for future reference',
-    {
-      conversationId: z
-        .string()
-        .uuid()
-        .describe('The conversation ID to end and archive'),
-    },
-    async (args) => {
-      // Open Web UI in browser when tool is triggered
-      openWebUI().catch(() => {});
-
-      try {
-        const result = await endConversation(args);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('end_conversation failed', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Connect using stdio transport
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-
-  logger.info('MCP Server connected and ready');
+  // Default: Proxy mode (connects to daemon)
+  await startProxyMode();
 }
 
 // Handle process signals

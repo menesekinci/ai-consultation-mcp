@@ -1,18 +1,21 @@
 {
   "name": "ai-consultation-mcp",
-  "version": "1.1.0",
+  "version": "2.1.0",
   "type": "module",
   "description": "MCP server for consulting other AI models (DeepSeek, OpenAI) for alternative perspectives during coding sessions",
   "main": "./dist/index.js",
   "bin": {
-    "ai-consultation-mcp": "./dist/index.js"
+    "ai-consultation-mcp": "./dist/index.js",
+    "ai-consultation-daemon": "./dist/daemon/index.js"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:daemon": "tsx watch src/daemon/index.ts",
     "build": "tsc && cp -r src/ui dist/",
     "build:ui": "cp -r src/ui dist/",
     "start": "node dist/index.js",
     "start:config": "node dist/index.js --config",
+    "start:daemon": "node dist/daemon/index.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
@@ -46,13 +49,17 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/genai": "^1.38.0",
     "@modelcontextprotocol/sdk": "^1.25.3",
+    "better-sqlite3": "^11.0.0",
     "express": "^5.2.1",
     "open": "^11.0.0",
     "openai": "^6.16.0",
+    "socket.io": "^4.8.0",
+    "socket.io-client": "^4.8.0",
     "uuid": "^11.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "@types/uuid": "^10.0.0",
