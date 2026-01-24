@@ -590,6 +590,33 @@
               </div>
               <p class="text-xs text-neutral-600 mt-1">Max wait time for AI response</p>
             </div>
+
+            <!-- Auto Open Web UI Toggle -->
+            <div class="md:col-span-2">
+              <div class="flex items-center justify-between p-4 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-accent-500/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 class="font-medium text-neutral-200 text-sm">Auto-open Web UI</h4>
+                    <p class="text-xs text-neutral-500">Automatically open this dashboard when an agent uses consultation tools</p>
+                  </div>
+                </div>
+                <button
+                  @click="config.autoOpenWebUI = !config.autoOpenWebUI; saveConfig()"
+                  :class="config.autoOpenWebUI ? 'bg-accent-500' : 'bg-surface-300'"
+                  class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:ring-offset-surface"
+                >
+                  <span
+                    :class="config.autoOpenWebUI ? 'translate-x-5' : 'translate-x-0'"
+                    class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  ></span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -913,7 +940,7 @@
         <div class="flex items-center justify-center space-x-2 text-neutral-600">
           <span class="font-mono text-sm">Agent Consultation MCP</span>
           <span class="text-accent-500">•</span>
-          <span class="font-mono text-sm">v2.1.0</span>
+          <span class="font-mono text-sm">v2.1.1</span>
         </div>
         <p class="text-neutral-600 text-sm mt-2">Configuration changes are saved automatically</p>
       </footer>
@@ -1140,6 +1167,7 @@
           defaultModel: '',
           maxMessages: 5,
           requestTimeout: 180000,
+          autoOpenWebUI: true,
           availableModels: [],
         },
         toasts: [],
@@ -1165,6 +1193,8 @@
         connected: false,
         hasShownConnectedToast: false,
         clientCount: 0,
+        // Flag to prevent duplicate toasts when saving config
+        _savingConfig: false,
 
         // Computed: total pages
         get totalPages() {
@@ -1349,9 +1379,13 @@
             });
 
             this.socket.on('config:updated', (config) => {
-              console.log('[WebUI] Config updated');
-              this.loadData(); // Refresh config
-              this.showToast('Configuration updated', 'info');
+              console.log('[WebUI] Config updated from another client');
+              // Only refresh if change came from another client (not our own save)
+              // We'll use a flag to prevent duplicate toasts
+              if (!this._savingConfig) {
+                this.loadData(); // Refresh config
+                this.showToast('Configuration updated', 'info');
+              }
             });
 
             this.socket.on('clients:count', (count) => {
@@ -1383,7 +1417,12 @@
             }
 
             this.providers = await providersRes.json();
-            this.config = await configRes.json();
+            const loadedConfig = await configRes.json();
+            // Ensure autoOpenWebUI has a default value if not present
+            this.config = {
+              ...loadedConfig,
+              autoOpenWebUI: loadedConfig.autoOpenWebUI !== undefined ? loadedConfig.autoOpenWebUI : true,
+            };
             this.loadError = null;
           } catch (error) {
             console.error('loadData error:', error);
@@ -1399,6 +1438,7 @@
         },
 
         async saveConfig() {
+          this._savingConfig = true;
           try {
             const res = await fetch('/api/config', {
               method: 'PATCH',
@@ -1407,6 +1447,7 @@
                 defaultModel: this.config.defaultModel,
                 maxMessages: parseInt(this.config.maxMessages, 10),
                 requestTimeout: parseInt(this.config.requestTimeout, 10),
+                autoOpenWebUI: this.config.autoOpenWebUI,
               }),
             });
 
@@ -1418,6 +1459,9 @@
             this.showToast('Settings saved', 'success');
           } catch (error) {
             this.showToast('Failed to save settings: ' + error.message, 'error');
+          } finally {
+            // Reset flag after a short delay to allow socket event to be ignored
+            setTimeout(() => { this._savingConfig = false; }, 500);
           }
         },
 

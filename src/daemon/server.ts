@@ -90,6 +90,7 @@ export function createDaemonServer(port: number): {
         defaultModel: config.defaultModel,
         maxMessages: config.maxMessages,
         requestTimeout: config.requestTimeout,
+        autoOpenWebUI: config.autoOpenWebUI,
         availableModels: MODEL_TYPES,
         providers: Object.fromEntries(
           Object.entries(config.providers).map(([id, cfg]) => [
@@ -105,8 +106,8 @@ export function createDaemonServer(port: number): {
 
   app.patch('/api/config', (req, res) => {
     try {
-      const { defaultModel, maxMessages, requestTimeout } = req.body;
-      const updates: { defaultModel?: ModelType; maxMessages?: number; requestTimeout?: number } = {};
+      const { defaultModel, maxMessages, requestTimeout, autoOpenWebUI } = req.body;
+      const updates: { defaultModel?: ModelType; maxMessages?: number; requestTimeout?: number; autoOpenWebUI?: boolean } = {};
 
       if (defaultModel !== undefined) {
         if (!MODEL_TYPES.includes(defaultModel)) {
@@ -130,6 +131,9 @@ export function createDaemonServer(port: number): {
           return;
         }
         updates.requestTimeout = num;
+      }
+      if (autoOpenWebUI !== undefined) {
+        updates.autoOpenWebUI = Boolean(autoOpenWebUI);
       }
 
       if (Object.keys(updates).length === 0) {

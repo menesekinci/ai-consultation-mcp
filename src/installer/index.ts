@@ -32,3 +32,6 @@ export {
 
 // Installation functions
 export { installToTool, installToAllTools, printInstallSummary } from './installer.js';
+
+// Uninstallation functions
+export { uninstallFromTool, uninstallFromAllTools, printUninstallSummary } from './installer.js';

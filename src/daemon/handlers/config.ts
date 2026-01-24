@@ -17,6 +17,9 @@ export function getConfig(): Config {
     defaultModel: (configMap.get('defaultModel') as Config['defaultModel']) || DEFAULT_CONFIG.defaultModel,
     maxMessages: parseInt(configMap.get('maxMessages') || String(DEFAULT_CONFIG.maxMessages), 10),
     requestTimeout: parseInt(configMap.get('requestTimeout') || String(DEFAULT_CONFIG.requestTimeout), 10),
+    autoOpenWebUI: configMap.has('autoOpenWebUI')
+      ? configMap.get('autoOpenWebUI') === 'true'
+      : DEFAULT_CONFIG.autoOpenWebUI,
     providers: configMap.has('providers')
       ? JSON.parse(configMap.get('providers')!)
       : DEFAULT_CONFIG.providers,
@@ -38,6 +41,9 @@ export function updateConfig(updates: Partial<Config>): void {
   }
   if (updates.requestTimeout !== undefined) {
     setQuery.run({ key: 'requestTimeout', value: String(updates.requestTimeout) });
+  }
+  if (updates.autoOpenWebUI !== undefined) {
+    setQuery.run({ key: 'autoOpenWebUI', value: String(updates.autoOpenWebUI) });
   }
   if (updates.providers !== undefined) {
     setQuery.run({ key: 'providers', value: JSON.stringify(updates.providers) });

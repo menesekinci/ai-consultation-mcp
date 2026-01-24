@@ -171,11 +171,34 @@ export function createDaemonClient(): {
 }
 
 /**
- * Open Web UI in browser (only once per session)
+ * Open Web UI in browser (only once per session, if enabled in config)
  */
-export async function openWebUI(): Promise<void> {
+export async function openWebUI(socket?: Socket): Promise<void> {
   if (browserOpened) {
     return;
+  }
+
+  // Check config if socket is provided
+  if (socket) {
+    try {
+      const config = await new Promise<{ autoOpenWebUI?: boolean }>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Config timeout')), 2000);
+        socket.emit('config:get', (response: { autoOpenWebUI?: boolean }) => {
+          clearTimeout(timeout);
+          if (response) {
+            resolve(response);
+          } else {
+            resolve({ autoOpenWebUI: true }); // Default to true if config fetch fails
+          }
+        });
+      });
+
+      if (config.autoOpenWebUI === false) {
+        return; // User disabled auto-open
+      }
+    } catch {
+      // If config check fails, proceed with opening (default behavior)
+    }
   }
 
   const port = await ensureDaemonRunning();

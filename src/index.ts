@@ -13,7 +13,7 @@ import {
 } from './server/index.js';
 import { initializeProviders } from './providers/index.js';
 import { startConfigUI, openWebUI } from './api/index.js';
-import { installToAllTools, printInstallSummary, SUPPORTED_TOOLS } from './installer/index.js';
+import { installToAllTools, printInstallSummary, uninstallFromAllTools, printUninstallSummary, SUPPORTED_TOOLS } from './installer/index.js';
 
 // Proxy imports for new architecture
 import { createDaemonClient, openWebUI as openProxyWebUI } from './proxy/daemon-client.js';
@@ -26,8 +26,13 @@ import {
 /**
  * Parse CLI arguments
  */
-function parseArgs(): { mode: 'mcp' | 'config' | 'install' | 'daemon' | 'legacy'; port?: number } {
+function parseArgs(): { mode: 'mcp' | 'config' | 'install' | 'uninstall' | 'daemon' | 'legacy'; port?: number } {
   const args = process.argv.slice(2);
+
+  // Check for uninstall mode
+  if (args.includes('--uninstall') || args.includes('uninstall') || args.includes('-u')) {
+    return { mode: 'uninstall' };
+  }
 
   // Check for install mode
   if (args.includes('--install') || args.includes('install') || args.includes('-i')) {
@@ -66,15 +71,17 @@ function parseArgs(): { mode: 'mcp' | 'config' | 'install' | 'daemon' | 'legacy'
 AI Consultation MCP - Get second opinions from DeepSeek Reasoner
 
 Usage:
-  npx ai-consultation-mcp           Start MCP proxy (connects to central daemon)
-  npx ai-consultation-mcp --install Auto-detect & install to all AI tools
-  npx ai-consultation-mcp --config  Open configuration UI in browser
-  npx ai-consultation-mcp --daemon  Start the central daemon directly
-  npx ai-consultation-mcp --legacy  Use legacy standalone mode (no daemon)
-  npx ai-consultation-mcp --help    Show this help message
+  npx ai-consultation-mcp             Start MCP proxy (connects to central daemon)
+  npx ai-consultation-mcp --install   Auto-detect & install to all AI tools
+  npx ai-consultation-mcp --uninstall Remove MCP from all AI tools
+  npx ai-consultation-mcp --config    Open configuration UI in browser
+  npx ai-consultation-mcp --daemon    Start the central daemon directly
+  npx ai-consultation-mcp --legacy    Use legacy standalone mode (no daemon)
+  npx ai-consultation-mcp --help      Show this help message
 
 Options:
   --install, -i        Auto-detect installed AI tools and add MCP to each
+  --uninstall, -u      Remove MCP configuration from all AI tools
   --config, -c         Open configuration UI to manage API keys
   --daemon, -d         Start central daemon (auto-started by proxy if needed)
   --legacy             Use legacy standalone mode (bypasses daemon)
@@ -144,9 +151,9 @@ async function startProxyMode(): Promise<void> {
         .describe('Supporting context: code snippets, error messages, your current approach'),
     },
     async (args) => {
-      openProxyWebUI().catch(() => {});
       try {
         const socket = await daemonClient.getSocket();
+        openProxyWebUI(socket).catch(() => {});
         const result = await handleConsultAgent(socket, args);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -169,9 +176,9 @@ async function startProxyMode(): Promise<void> {
       message: z.string().describe('Your follow-up question or response'),
     },
     async (args) => {
-      openProxyWebUI().catch(() => {});
       try {
         const socket = await daemonClient.getSocket();
+        openProxyWebUI(socket).catch(() => {});
         const result = await handleContinueConversation(socket, args);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -193,9 +200,9 @@ async function startProxyMode(): Promise<void> {
       conversationId: z.string().uuid().describe('The conversation ID to end and archive'),
     },
     async (args) => {
-      openProxyWebUI().catch(() => {});
       try {
         const socket = await daemonClient.getSocket();
+        openProxyWebUI(socket).catch(() => {});
         const result = await handleEndConversation(socket, args);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -330,6 +337,16 @@ async function main(): Promise<void> {
       process.exit(0);
     }
     return;
+  }
+
+  // Uninstall mode
+  if (mode === 'uninstall') {
+    console.log('🧹 AI Consultation MCP - Uninstaller\n');
+    console.log('Scanning for installed AI tools...\n');
+
+    const summary = uninstallFromAllTools();
+    printUninstallSummary(summary);
+    process.exit(0);
   }
 
   // Daemon mode - start daemon directly

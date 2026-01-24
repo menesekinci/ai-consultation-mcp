@@ -16,6 +16,7 @@ export interface Config {
   defaultModel: ModelType;
   maxMessages: number;
   requestTimeout: number; // API request timeout in milliseconds
+  autoOpenWebUI: boolean; // Auto-open Web UI when agent uses tools
   providers: {
     deepseek: ProviderConfig;
     openai: ProviderConfig;
