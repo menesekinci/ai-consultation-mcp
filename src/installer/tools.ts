@@ -24,19 +24,19 @@ export const SUPPORTED_TOOLS: ToolDefinition[] = [
     description: 'Anthropic\'s official CLI for Claude',
     configPaths: {
       darwin: {
-        path: '.claude/mcp.json',
+        path: '.claude.json',
         relative: true,
         mcpKey: 'mcpServers',
         format: 'json',
       },
       linux: {
-        path: '.claude/mcp.json',
+        path: '.claude.json',
         relative: true,
         mcpKey: 'mcpServers',
         format: 'json',
       },
       win32: {
-        path: '.claude/mcp.json',
+        path: '.claude.json',
         relative: true,
         mcpKey: 'mcpServers',
         format: 'json',

@@ -85,6 +85,16 @@ function createMcpServerConfig(tool: ToolDefinition): Record<string, unknown> {
     };
   }
 
+  // Special handling for Claude Code (uses type: stdio with env)
+  if (tool.id === 'claude-code') {
+    return {
+      type: 'stdio',
+      command: tool.mcpConfig.command,
+      args: tool.mcpConfig.args,
+      env: {},
+    };
+  }
+
   // Special handling for VSCode Copilot (uses type: stdio)
   if (tool.id === 'vscode-copilot') {
     return {
