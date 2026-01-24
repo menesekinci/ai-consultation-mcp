@@ -4,7 +4,7 @@ import type { ConsultationMode } from './schema.js';
  * Base context that explains the consultation purpose
  * This ensures the AI understands its role as a "second opinion" provider
  */
-const CONSULTATION_CONTEXT = `You are being consulted by another AI agent (like Claude Code) to provide a SECOND OPINION.
+const CONSULTATION_CONTEXT = `You are being consulted by another AI coding agent to provide a SECOND OPINION.
 
 Your role is to ENRICH PERSPECTIVES by:
 - Challenging assumptions and identifying blind spots

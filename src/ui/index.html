@@ -490,7 +490,7 @@
               </svg>
             </div>
             <h3 class="text-lg font-semibold text-neutral-300 mb-2">No Active Conversations</h3>
-            <p class="text-neutral-500 text-sm">DeepSeek conversations from Claude Code will appear here.</p>
+            <p class="text-neutral-500 text-sm">AI consultation conversations will appear here.</p>
           </div>
         </template>
 
@@ -628,7 +628,7 @@
                 <h3 class="text-xl font-semibold text-neutral-100 mb-2">Purpose</h3>
                 <p class="text-neutral-400 leading-relaxed">
                   When AI agents work on complex tasks, having a single perspective can lead to blind spots or suboptimal solutions.
-                  This MCP server enables agents like Claude Code to consult with other AI models (DeepSeek, ChatGPT)
+                  This MCP server enables AI coding agents to consult with other AI models (DeepSeek, ChatGPT, Gemini)
                   to get alternative viewpoints, validate approaches, or explore different problem-solving strategies.
                 </p>
               </div>
@@ -648,7 +648,7 @@
                 <div class="space-y-3 text-neutral-400">
                   <div class="flex items-start gap-3">
                     <span class="w-6 h-6 bg-accent-500/20 text-accent-400 rounded-full flex items-center justify-center text-sm font-semibold shrink-0">1</span>
-                    <p>An AI agent (like Claude Code) encounters a complex problem or wants to validate an approach.</p>
+                    <p>An AI coding agent encounters a complex problem or wants to validate an approach.</p>
                   </div>
                   <div class="flex items-start gap-3">
                     <span class="w-6 h-6 bg-accent-500/20 text-accent-400 rounded-full flex items-center justify-center text-sm font-semibold shrink-0">2</span>
@@ -931,7 +931,7 @@
                         </svg>
                       </template>
                     </div>
-                    <span class="text-xs font-semibold" :class="msg.role === 'user' ? 'text-accent-400' : 'text-emerald-400'" x-text="msg.role === 'user' ? 'Claude Code' : 'DeepSeek'"></span>
+                    <span class="text-xs font-semibold" :class="msg.role === 'user' ? 'text-accent-400' : 'text-emerald-400'" x-text="msg.role === 'user' ? 'Agent' : selectedConversation?.model || 'AI'"></span>
                   </div>
                   <div class="text-sm whitespace-pre-wrap break-words leading-relaxed" x-text="msg.content"></div>
                 </div>
