@@ -1,11 +1,37 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { ConfigError } from '../utils/index.js';
 import { logger } from '../utils/index.js';
 import { DEFAULT_CONFIG } from './defaults.js';
 import { encrypt, decrypt, isEncrypted } from './encryption.js';
 import { configSchema } from './schema.js';
 import type { Config } from '../types/index.js';
+
+/**
+ * Get the config directory path (in user's home directory)
+ */
+function getConfigDir(): string {
+  return path.join(os.homedir(), '.agent-consultation-mcp');
+}
+
+/**
+ * Get the config file path
+ */
+function getConfigPath(): string {
+  return path.join(getConfigDir(), 'config.json');
+}
+
+/**
+ * Ensure config directory exists
+ */
+function ensureConfigDir(): void {
+  const configDir = getConfigDir();
+  if (!fsSync.existsSync(configDir)) {
+    fsSync.mkdirSync(configDir, { recursive: true });
+  }
+}
 
 /**
  * Configuration file manager
@@ -17,8 +43,9 @@ export class ConfigManager {
 
   constructor(configPath?: string) {
     this.config = { ...DEFAULT_CONFIG };
-    this.configPath =
-      configPath || path.join(process.cwd(), 'config', 'config.json');
+    // Always use home directory for config (consistent across all invocations)
+    this.configPath = configPath || getConfigPath();
+    ensureConfigDir();
   }
 
   /**

@@ -1,6 +1,6 @@
 {
   "name": "agent-consultation-mcp",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "type": "module",
   "description": "MCP server for consulting other AI models (DeepSeek, OpenAI) for alternative perspectives during coding sessions",
   "main": "./dist/index.js",

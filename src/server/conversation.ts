@@ -1,18 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
+import * as os from 'os';
 import { ConversationError } from '../utils/index.js';
 import { MAX_MESSAGES_LIMIT, CONVERSATION_TIMEOUT_MS } from '../config/index.js';
 import type { Message, ModelType } from '../types/index.js';
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Config directory in user's home (consistent across all invocations)
+const CONFIG_DIR = path.join(os.homedir(), '.agent-consultation-mcp');
 
-// Conversations file path (in config directory)
-const CONVERSATIONS_FILE = path.join(__dirname, '../../config/conversations.json');
-const HISTORY_FILE = path.join(__dirname, '../../config/conversation_history.json');
+// Ensure config directory exists
+if (!fs.existsSync(CONFIG_DIR)) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+}
+
+// Conversations file paths (in home directory)
+const CONVERSATIONS_FILE = path.join(CONFIG_DIR, 'conversations.json');
+const HISTORY_FILE = path.join(CONFIG_DIR, 'conversation_history.json');
 
 /**
  * Serializable conversation for file storage
