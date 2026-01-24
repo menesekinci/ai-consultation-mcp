@@ -1,6 +1,6 @@
 {
   "name": "ai-consultation-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "MCP server for consulting other AI models (DeepSeek, OpenAI) for alternative perspectives during coding sessions",
   "main": "./dist/index.js",
