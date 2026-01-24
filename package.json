@@ -1,0 +1,65 @@
+{
+  "name": "agent-consultation-mcp",
+  "version": "1.5.0",
+  "type": "module",
+  "description": "MCP server for consulting other AI models (DeepSeek, OpenAI) for alternative perspectives during coding sessions",
+  "main": "./dist/index.js",
+  "bin": {
+    "agent-consultation-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && cp -r src/ui dist/",
+    "build:ui": "cp -r src/ui dist/",
+    "start": "node dist/index.js",
+    "start:config": "node dist/index.js --config",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "llm",
+    "openai",
+    "deepseek",
+    "claude-code",
+    "agent",
+    "consultation"
+  ],
+  "author": "Menes Ekinci",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/menesekinci/agent-consultation-mcp"
+  },
+  "homepage": "https://github.com/menesekinci/agent-consultation-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/menesekinci/agent-consultation-mcp/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.38.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "express": "^5.2.1",
+    "open": "^11.0.0",
+    "openai": "^6.16.0",
+    "uuid": "^11.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

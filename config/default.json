@@ -1,0 +1,18 @@
+{
+  "defaultModel": "gpt-4o",
+  "maxMessages": 5,
+  "providers": {
+    "openai": {
+      "enabled": false
+    },
+    "deepseek": {
+      "enabled": false
+    },
+    "google": {
+      "enabled": false
+    },
+    "anthropic": {
+      "enabled": false
+    }
+  }
+}

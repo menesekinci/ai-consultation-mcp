@@ -1,0 +1,25 @@
+# Source files (dist is published)
+src/
+*.ts
+tsconfig.json
+
+# Development
+.git
+.gitignore
+.vscode
+.idea
+
+# Config (user's own config)
+config/
+
+# Tests
+*.test.ts
+*.spec.ts
+__tests__/
+
+# Misc
+*.log
+*.md
+!README.md
+.DS_Store
+node_modules/
