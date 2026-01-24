@@ -6,6 +6,7 @@ import type { Config } from '../types/index.js';
 export const DEFAULT_CONFIG: Config = {
   defaultModel: 'deepseek-reasoner',
   maxMessages: 5,
+  requestTimeout: 180000, // 3 minutes default
   providers: {
     deepseek: {
       enabled: false,

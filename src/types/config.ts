@@ -15,6 +15,7 @@ export interface ProviderConfig {
 export interface Config {
   defaultModel: ModelType;
   maxMessages: number;
+  requestTimeout: number; // API request timeout in milliseconds
   providers: {
     deepseek: ProviderConfig;
     openai: ProviderConfig;

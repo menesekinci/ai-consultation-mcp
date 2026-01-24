@@ -7,6 +7,7 @@ import type {
   ProviderResponse,
 } from './types.js';
 import { BaseProvider } from './base.js';
+import { getConfigManager } from '../config/index.js';
 import { logger } from '../utils/index.js';
 
 /**
@@ -35,9 +36,11 @@ export class DeepSeekProvider extends BaseProvider {
         );
       }
 
+      const config = getConfigManager().getConfig();
       this.client = new OpenAI({
         apiKey,
         baseURL: DEEPSEEK_BASE_URL,
+        timeout: config.requestTimeout,
       });
     }
     return this.client;

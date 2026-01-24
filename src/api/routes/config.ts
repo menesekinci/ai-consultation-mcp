@@ -16,6 +16,7 @@ router.get('/', (_req, res) => {
     const safeConfig = {
       defaultModel: config.defaultModel,
       maxMessages: config.maxMessages,
+      requestTimeout: config.requestTimeout,
       availableModels: MODEL_TYPES,
       providers: Object.fromEntries(
         Object.entries(config.providers).map(([id, cfg]) => [
@@ -42,8 +43,8 @@ router.get('/', (_req, res) => {
  */
 router.patch('/', async (req, res) => {
   try {
-    const { defaultModel, maxMessages } = req.body;
-    const updates: { defaultModel?: ModelType; maxMessages?: number } = {};
+    const { defaultModel, maxMessages, requestTimeout } = req.body;
+    const updates: { defaultModel?: ModelType; maxMessages?: number; requestTimeout?: number } = {};
 
     // Validate defaultModel
     if (defaultModel !== undefined) {
@@ -70,10 +71,23 @@ router.patch('/', async (req, res) => {
       updates.maxMessages = num;
     }
 
+    // Validate requestTimeout
+    if (requestTimeout !== undefined) {
+      const num = parseInt(requestTimeout, 10);
+      if (isNaN(num) || num < 30000 || num > 600000) {
+        res.status(400).json({
+          error: 'Invalid requestTimeout',
+          message: 'requestTimeout must be between 30000 (30s) and 600000 (10min)',
+        });
+        return;
+      }
+      updates.requestTimeout = num;
+    }
+
     if (Object.keys(updates).length === 0) {
       res.status(400).json({
         error: 'No updates provided',
-        message: 'Provide at least one of: defaultModel, maxMessages',
+        message: 'Provide at least one of: defaultModel, maxMessages, requestTimeout',
       });
       return;
     }

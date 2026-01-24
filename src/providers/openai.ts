@@ -7,6 +7,7 @@ import type {
   ProviderResponse,
 } from './types.js';
 import { BaseProvider } from './base.js';
+import { getConfigManager } from '../config/index.js';
 import { logger } from '../utils/index.js';
 
 /**
@@ -30,8 +31,10 @@ export class OpenAIProvider extends BaseProvider {
         );
       }
 
+      const config = getConfigManager().getConfig();
       this.client = new OpenAI({
         apiKey,
+        timeout: config.requestTimeout,
       });
     }
     return this.client;

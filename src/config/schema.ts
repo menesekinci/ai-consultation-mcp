@@ -15,6 +15,7 @@ export const providerConfigSchema = z.object({
 export const configSchema = z.object({
   defaultModel: z.enum(MODEL_TYPES),
   maxMessages: z.number().int().min(1).max(10),
+  requestTimeout: z.number().int().min(30000).max(600000).default(180000), // 30s to 10min, default 3min
   providers: z.object({
     deepseek: providerConfigSchema,
     openai: providerConfigSchema,
