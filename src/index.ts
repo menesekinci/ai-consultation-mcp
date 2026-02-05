@@ -14,7 +14,10 @@ import {
   ragListDocs,
   ragListMemories,
   ragGetDocChunks,
-  ragAddMemory,
+  ragListFolders,
+  ragUpdateDocFolder,
+  ragBulkUpdateFolders,
+  ragUploadFiles,
 } from './server/index.js';
 import { initializeProviders } from './providers/index.js';
 import { startConfigUI, openWebUI } from './api/index.js';
@@ -27,6 +30,10 @@ import {
   handleContinueConversation,
   handleEndConversation,
 } from './proxy/bridge.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { getTitleFromPath, isDuplicateTitle } from './rag/dedupe.js';
+import { inferMimeType } from './rag/ingest.js';
 
 /**
  * Parse CLI arguments
@@ -243,6 +250,115 @@ async function startProxyMode(): Promise<void> {
     return res.json();
   }
 
+  async function callDaemonRagUpload(input: { paths: string[]; ifExists?: 'skip' | 'allow' | 'replace'; folder?: string }) {
+    const ifExists = input.ifExists ?? 'skip';
+    const lock = await ensureDaemonRunning();
+    const baseUrl = `http://127.0.0.1:${lock.port}/api/rag`;
+
+    const listRes = await fetch(`${baseUrl}/documents`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-daemon-token': lock.token,
+      },
+    });
+    if (!listRes.ok) {
+      const text = await listRes.text();
+      throw new Error(text || `RAG list failed: ${listRes.status}`);
+    }
+    const listData = await listRes.json();
+    const documents = Array.isArray(listData?.documents) ? listData.documents : [];
+    const existingTitles = documents.map((d: { title: string }) => d.title);
+
+    const processedTitles = new Set<string>();
+    const skipped: Array<{ title: string; sourcePath: string; reason: string }> = [];
+    const errors: Array<{ sourcePath: string; error: string }> = [];
+    const queued: Array<{ title: string; sourcePath: string }> = [];
+    const form = new FormData();
+
+    for (const rawPath of input.paths) {
+      const resolvedPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
+      const title = getTitleFromPath(resolvedPath);
+      const normalizedTitle = title.trim().toLowerCase();
+
+      if (ifExists !== 'allow' && processedTitles.has(normalizedTitle)) {
+        skipped.push({ title, sourcePath: resolvedPath, reason: 'duplicate in batch' });
+        continue;
+      }
+
+      const hasDuplicate = isDuplicateTitle(existingTitles, title);
+      if (hasDuplicate && ifExists === 'skip') {
+        skipped.push({ title, sourcePath: resolvedPath, reason: 'document already exists' });
+        processedTitles.add(normalizedTitle);
+        continue;
+      }
+
+      if (hasDuplicate && ifExists === 'replace') {
+        const matching = documents.filter((doc: { id: string; title: string }) => doc.title.trim().toLowerCase() === normalizedTitle);
+        for (const doc of matching) {
+          const delRes = await fetch(`${baseUrl}/documents/${doc.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-daemon-token': lock.token,
+            },
+          });
+          if (!delRes.ok) {
+            const text = await delRes.text();
+            errors.push({ sourcePath: resolvedPath, error: text || `Failed to delete existing document (${delRes.status})` });
+          }
+        }
+        processedTitles.add(normalizedTitle);
+      }
+
+      try {
+        const buffer = await fs.readFile(resolvedPath);
+        const mimeType = inferMimeType(title);
+        form.append('files', new Blob([buffer], { type: mimeType }), title);
+        if (input.folder) {
+          form.set('folder', input.folder);
+        }
+        queued.push({ title, sourcePath: resolvedPath });
+        if (ifExists !== 'allow') {
+          processedTitles.add(normalizedTitle);
+        }
+      } catch (error) {
+        errors.push({ sourcePath: resolvedPath, error: error instanceof Error ? error.message : 'Unknown error' });
+        processedTitles.add(normalizedTitle);
+      }
+    }
+
+    if (queued.length === 0) {
+      return { uploaded: [], skipped, errors };
+    }
+
+    const uploadRes = await fetch(`${baseUrl}/upload`, {
+      method: 'POST',
+      headers: {
+        'x-daemon-token': lock.token,
+      },
+      body: form,
+    });
+    if (!uploadRes.ok) {
+      const text = await uploadRes.text();
+      throw new Error(text || `RAG upload failed: ${uploadRes.status}`);
+    }
+    const uploadData = await uploadRes.json();
+    const uploadedDocs = Array.isArray(uploadData?.documents) ? uploadData.documents : [];
+    const remaining = [...queued];
+    const uploaded = uploadedDocs.map((doc: { documentId: string; title: string; chunkCount: number }) => {
+      const matchIndex = remaining.findIndex((item) => item.title === doc.title);
+      const match = matchIndex >= 0 ? remaining.splice(matchIndex, 1)[0] : remaining.shift();
+      return {
+        documentId: doc.documentId,
+        title: doc.title,
+        chunkCount: doc.chunkCount,
+        sourcePath: match?.sourcePath ?? '',
+      };
+    });
+
+    return { uploaded, skipped, errors };
+  }
+
   server.tool(
     'rag_search',
     'Search RAG documents with optional filters',
@@ -250,6 +366,7 @@ async function startProxyMode(): Promise<void> {
       query: z.string().describe('Search query'),
       docIds: z.array(z.string().uuid()).optional().describe('Restrict to document IDs'),
       docTitles: z.array(z.string()).optional().describe('Restrict to document titles'),
+      folder: z.string().optional().describe('Restrict to folder'),
       topK: z.number().optional().describe('Number of top results'),
       minScore: z.number().optional().describe('Minimum similarity score'),
     },
@@ -267,12 +384,95 @@ async function startProxyMode(): Promise<void> {
   );
 
   server.tool(
+    'rag_upload_files',
+    'Upload local files to RAG using file paths',
+    {
+      paths: z.array(z.string()).min(1).describe('File paths to upload'),
+      ifExists: z.enum(['skip', 'allow', 'replace']).optional().describe('Behavior when a document with the same title exists'),
+      folder: z.string().optional().describe('Folder name'),
+    },
+    async (args) => {
+      try {
+        const result = await callDaemonRagUpload(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
     'rag_list_docs',
     'List available RAG documents',
+    {
+      folder: z.string().optional().describe('Restrict to folder'),
+    },
+    async (args) => {
+      try {
+        const suffix = args?.folder ? `?folder=${encodeURIComponent(args.folder)}` : '';
+        const result = await callDaemonRag(`/documents${suffix}`);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_list_folders',
+    'List available RAG folders',
     {},
     async () => {
       try {
-        const result = await callDaemonRag('/documents');
+        const result = await callDaemonRag('/folders');
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_update_doc_folder',
+    'Update a document folder',
+    {
+      documentId: z.string().uuid().describe('Document ID'),
+      folder: z.string().describe('Folder name'),
+    },
+    async (args) => {
+      try {
+        const result = await callDaemonRag(`/documents/${args.documentId}/folder`, {
+          method: 'PATCH',
+          body: { folder: args.folder },
+        });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_bulk_update_folders',
+    'Bulk update document folders',
+    {
+      mappings: z.array(z.object({ documentId: z.string().uuid(), folder: z.string() })).describe('Folder mappings'),
+    },
+    async (args) => {
+      try {
+        const result = await callDaemonRag('/documents/folders', { method: 'POST', body: { mappings: args.mappings } });
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error) {
         return {
@@ -290,27 +490,6 @@ async function startProxyMode(): Promise<void> {
     async () => {
       try {
         const result = await callDaemonRag('/memories');
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (error) {
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  server.tool(
-    'rag_add_memory',
-    'Add a memory note that will be embedded for RAG search',
-    {
-      category: z.enum(['architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other']),
-      title: z.string().describe('Short memory title'),
-      content: z.string().describe('Memory content'),
-    },
-    async (args) => {
-      try {
-        const result = await ragAddMemory(args);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error) {
         return {
@@ -453,6 +632,7 @@ async function startLegacyMode(): Promise<void> {
       query: z.string().describe('Search query'),
       docIds: z.array(z.string().uuid()).optional().describe('Restrict to document IDs'),
       docTitles: z.array(z.string()).optional().describe('Restrict to document titles'),
+      folder: z.string().optional().describe('Restrict to folder'),
       topK: z.number().optional().describe('Number of top results'),
       minScore: z.number().optional().describe('Minimum similarity score'),
     },
@@ -470,12 +650,94 @@ async function startLegacyMode(): Promise<void> {
   );
 
   server.tool(
+    'rag_upload_files',
+    'Upload local files to RAG using file paths',
+    {
+      paths: z.array(z.string()).min(1).describe('File paths to upload'),
+      ifExists: z.enum(['skip', 'allow', 'replace']).optional().describe('Behavior when a document with the same title exists'),
+      folder: z.string().optional().describe('Folder name'),
+    },
+    async (args) => {
+      openWebUI().catch(() => {});
+      try {
+        const result = await ragUploadFiles(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
     'rag_list_docs',
     'List available RAG documents',
+    {
+      folder: z.string().optional().describe('Restrict to folder'),
+    },
+    async (args) => {
+      try {
+        const result = ragListDocs(args?.folder ? { folder: args.folder } : undefined);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_list_folders',
+    'List available RAG folders',
     {},
     async () => {
       try {
-        const result = ragListDocs();
+        const result = ragListFolders();
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_update_doc_folder',
+    'Update a document folder',
+    {
+      documentId: z.string().uuid().describe('Document ID'),
+      folder: z.string().describe('Folder name'),
+    },
+    async (args) => {
+      openWebUI().catch(() => {});
+      try {
+        const result = ragUpdateDocFolder(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_bulk_update_folders',
+    'Bulk update document folders',
+    {
+      mappings: z.array(z.object({ documentId: z.string().uuid(), folder: z.string() })).describe('Folder mappings'),
+    },
+    async (args) => {
+      openWebUI().catch(() => {});
+      try {
+        const result = ragBulkUpdateFolders(args);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error) {
         return {

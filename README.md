@@ -5,17 +5,22 @@
 
 An MCP (Model Context Protocol) server that enables AI agents to get a **second opinion** from other AI models, enriching their perspectives during work.
 
-> **Purpose**: When AI agents work on complex tasks, having a single perspective can lead to blind spots or suboptimal solutions. This MCP server allows agents like Claude Code to consult with DeepSeek Reasoner or ChatGPT for alternative viewpoints, validation, or different problem-solving strategies.
+> **Purpose**: When AI agents work on complex tasks, having a single perspective can lead to blind spots or suboptimal solutions. This MCP server allows agents like Claude Code to consult with DeepSeek Reasoner, GPT-4o, Gemini, or Claude for alternative viewpoints, validation, or different problem-solving strategies.
 
 ## Features
 
-- **Multi-Tool Auto-Install**: Automatically detects and configures MCP for Claude Code, Cursor, Windsurf, Cline, Continue, Zed, and more
-- **Multi-Provider Support**: DeepSeek (Reasoner, Chat) and OpenAI (GPT-5.2, GPT-5.2 Pro)
+- **Central Daemon Architecture**: SQLite-based central daemon with WebSocket real-time sync across all connected clients
+- **Multi-Tool Auto-Install**: Automatically detects and configures MCP for Claude Code, Cursor, Windsurf, Cline, Continue, Zed, Roo Code, OpenCode, and VSCode Copilot
+- **Multi-Provider Support**: 
+  - **OpenAI**: GPT-4o, GPT-4o-mini, o1, o3-mini
+  - **DeepSeek**: deepseek-chat, deepseek-reasoner
+  - **Google**: Gemini 2.0 Flash, Gemini 2.0 Pro
+  - **Anthropic**: Claude Sonnet 4, Claude Haiku
 - **Specialized Consultation Modes**: Debug, Code Analysis, Architecture Review, Plan Validation, Concept Explanation
-- **Conversation Management**: Continue multi-turn conversations with context
-- **Web UI**: Configure providers and API keys through a browser interface
-- **Encrypted Storage**: API keys are encrypted at rest
-- **RAG + Memory**: Upload documents, add memory notes, and use them during consultations
+- **Conversation Management**: Continue multi-turn conversations with context (max 5 messages to prevent infinite loops)
+- **Real-time Web UI**: Configure providers, API keys, and view conversation history with live updates via WebSocket
+- **Encrypted Storage**: API keys are encrypted at rest using AES-256-GCM
+- **RAG + Memory**: Upload documents (txt, md, pdf, docx), add memory notes, and use them during consultations
 
 ## Quick Start (2 steps)
 
@@ -98,6 +103,42 @@ Add to `~/.claude/mcp.json`:
 }
 ```
 
+## Architecture
+
+### Central Daemon + WebSocket
+
+The MCP server uses a **central daemon architecture** for robust multi-client support:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      CENTRAL DAEMON                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │ SQLite DB   │  │ WebSocket   │  │ HTTP API               │  │
+│  │ (WAL mode)  │  │ Server      │  │ /api/*                 │  │
+│  │             │  │             │  │                         │  │
+│  │ - config    │  │ - sync      │  │ - config CRUD          │  │
+│  │ - convos    │  │ - broadcast │  │ - provider CRUD        │  │
+│  │ - history   │  │ - rooms     │  │ - chat history         │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+            ┌───────────────┼───────────────┐
+            │               │               │
+            ▼               ▼               ▼
+    ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
+    │ MCP Proxy     │ │ MCP Proxy     │ │ Web UI        │
+    │ (Claude Code) │ │ (Cursor)      │ │ (Browser)     │
+    │               │ │               │ │               │
+    │ stdio ↔ WS    │ │ stdio ↔ WS    │ │ WS Client     │
+    └───────────────┘ └───────────────┘ └───────────────┘
+```
+
+**Benefits:**
+- ✅ No race conditions with SQLite + WAL mode
+- ✅ Real-time sync across all connected clients
+- ✅ Automatic daemon lifecycle management
+- ✅ Persistent conversation history
+
 ## Configuration
 
 ### Setting Up API Keys
@@ -107,36 +148,39 @@ npx ai-consultation-mcp --config
 ```
 
 This opens a web UI where you can:
-- Add/update API keys for DeepSeek and OpenAI
+- Add/update API keys for all supported providers
 - Test API key validity
-- Change default model
-- View conversation history
-
-## RAG / Memory (Experimental)
-
-This build includes a local RAG pipeline that can embed uploaded documents and repo scan notes.
-
-### Start local embedding server
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r scripts/embedding_server_requirements.txt
-python scripts/embedding_server.py
-```
-
-The server listens on `http://127.0.0.1:7999/embed` by default. You can override with `RAG_EMBED_URL`.
+- Set default and fallback models
+- View conversation history in real-time
+- Manage RAG documents and memory notes
 
 ### Supported Providers
 
 | Provider | Models | API Key |
 |----------|--------|---------|
-| DeepSeek | `deepseek-reasoner` (default), `deepseek-chat` | [Get API Key](https://platform.deepseek.com/) |
-| OpenAI | `gpt-5.2`, `gpt-5.2-pro` | [Get API Key](https://platform.openai.com/) |
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | [Get API Key](https://platform.openai.com/) |
+| **DeepSeek** | `deepseek-reasoner` (default), `deepseek-chat` | [Get API Key](https://platform.deepseek.com/) |
+| **Google** | `gemini-2.0-flash`, `gemini-2.0-pro` | [Get API Key](https://ai.google.dev/) |
+| **Anthropic** | `claude-sonnet-4`, `claude-haiku` | [Get API Key](https://console.anthropic.com/) |
+
+### Model Features
+
+| Model | Provider | Context | Max Output | Features |
+|-------|----------|---------|------------|----------|
+| gpt-4o | OpenAI | 128K | 16K | Vision, function calling |
+| gpt-4o-mini | OpenAI | 128K | 16K | Fast, cost-effective |
+| o1 | OpenAI | 200K | 100K | Chain-of-thought reasoning |
+| o3-mini | OpenAI | 200K | 100K | Reasoning, affordable |
+| deepseek-chat | DeepSeek | 128K | 8K | Fast, very affordable |
+| deepseek-reasoner | DeepSeek | 64K | 64K | Chain-of-thought |
+| gemini-2.0-flash | Google | 1M | 8K | Very fast |
+| gemini-2.0-pro | Google | 2M | 8K | Best quality |
+| claude-sonnet-4 | Anthropic | 200K | 8K | Balanced |
+| claude-haiku | Anthropic | 200K | 4K | Fastest |
 
 ## Usage
 
-Once configured, Claude Code can use the following tools:
+Once configured, your AI assistant can use the following tools:
 
 ### consult_agent
 
@@ -170,21 +214,34 @@ End an active consultation conversation.
 ```
 Parameters:
 - conversationId (required): The conversation ID to end
+```
 
 ### rag_search
 
 Search RAG documents with optional filters.
 
+```
 Parameters:
 - query (required): Search query
 - docIds (optional): Restrict to document IDs
 - docTitles (optional): Restrict to document titles
+- folder (optional): Restrict to folder
 - topK (optional): Number of results (default 4)
 - minScore (optional): Minimum similarity score (default 0.35)
+```
 
 ### rag_list_docs
 
 List available RAG documents.
+
+```
+Parameters:
+- folder (optional): Restrict to folder
+```
+
+### rag_list_folders
+
+List available RAG folders.
 
 ### rag_list_memories
 
@@ -194,17 +251,60 @@ List structured memory notes.
 
 Get all chunks for a document.
 
+```
 Parameters:
 - documentId (required)
+```
 
 ### rag_add_memory
 
 Add a memory note (embedded and searchable by RAG).
 
+```
 Parameters:
 - category (required): architecture | backend | db | auth | config | flow | other
 - title (required): Short memory title
 - content (required): Memory content
+```
+
+### rag_upload_files
+
+Upload local files to the RAG index using file paths.
+
+```
+Parameters:
+- paths (required): Array of file paths to upload
+- ifExists (optional): skip | allow | replace (default: skip)
+- folder (optional): Folder name
+```
+
+**Example**
+```
+{
+  "tool": "rag_upload_files",
+  "paths": ["Architecture/trendyol-go-api-context7.md", "docs/migros.md"],
+  "ifExists": "skip",
+  "folder": "food/migros"
+}
+```
+
+### rag_update_doc_folder
+
+Update a document folder.
+
+```
+Parameters:
+- documentId (required)
+- folder (required)
+```
+
+### rag_bulk_update_folders
+
+Bulk update document folders.
+
+```
+Parameters:
+- mappings (required): [{ documentId, folder }]
 ```
 
 ## Example
@@ -226,6 +326,43 @@ Claude will then call the `consult_agent` tool with your question and provide th
 | `explainConcept` | Explain technical concepts clearly |
 | `general` | General-purpose consultation |
 
+## RAG / Memory
+
+The MCP server includes a local RAG (Retrieval-Augmented Generation) pipeline for contextual consultations.
+Folders (namespaces) can be used to scope documents. A common flow is:
+1) `rag_list_folders`
+2) `rag_list_docs` with `folder`
+3) `rag_search` with `folder` and/or specific `docIds`
+
+### Start Local Embedding Server
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r scripts/embedding_server_requirements.txt
+python scripts/embedding_server.py
+```
+
+The server listens on `http://127.0.0.1:7999/embed` by default. You can override with `RAG_EMBED_URL`.
+
+### Add Memory Notes
+
+```json
+{
+  "tool": "rag_add_memory",
+  "category": "auth",
+  "title": "Login flow",
+  "content": "POST /auth/login -> validate -> issue JWT -> response Authorization header"
+}
+```
+
+### Web UI RAG Features
+
+- Upload multiple documents (txt, md, pdf, docx)
+- Select documents to scope searches
+- RAG Test with topK/minScore controls
+- Real-time document management
+
 ## Development
 
 ```bash
@@ -239,41 +376,22 @@ npm install
 # Run in development mode
 npm run dev
 
+# Run daemon in development mode
+npm run dev:daemon
+
 # Build for production
 npm run build
+
+# Run tests
+npm test
 ```
 
-## RAG / Memory (Experimental)
+## Security
 
-This build includes a local RAG pipeline that can embed uploaded documents and memory notes.
-
-### Start local embedding server
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r scripts/embedding_server_requirements.txt
-python scripts/embedding_server.py
-```
-
-The server listens on `http://127.0.0.1:7999/embed` by default. You can override with `RAG_EMBED_URL`.
-
-### Add memory notes (example)
-
-```json
-{
-  "tool": "rag_add_memory",
-  "category": "auth",
-  "title": "Login flow",
-  "content": "POST /auth/login -> validate -> issue JWT -> response Authorization header"
-}
-```
-
-### UI RAG tab
-
-- Upload multiple documents (txt, md, pdf, docx)
-- Select documents to scope searches
-- RAG Test with topK/minScore controls
+- **API Key Encryption**: All API keys are encrypted at rest using AES-256-GCM
+- **Local-only**: Web UI only accessible on localhost
+- **No Logging**: API keys are never logged
+- **SQLite WAL Mode**: ACID-compliant database operations prevent data corruption
 
 ## License
 

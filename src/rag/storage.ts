@@ -5,9 +5,10 @@ import { encodeVector } from './embeddings.js';
 export interface DocumentRecord {
   id: string;
   title: string;
-  sourceType: 'upload' | 'repo_scan' | 'manual';
+  sourceType: 'upload' | 'manual';
   sourceUri: string | null;
   mimeType: string | null;
+  folder?: string | null;
   createdAt: string;
   chunkCount?: number;
 }
@@ -34,7 +35,7 @@ export interface MemoryRecord {
   category: 'architecture' | 'backend' | 'db' | 'auth' | 'config' | 'flow' | 'other';
   title: string;
   content: string;
-  source: 'repo_scan' | 'manual';
+  source: 'manual';
   createdAt: string;
 }
 
@@ -43,18 +44,20 @@ export function createDocument(input: {
   sourceType: DocumentRecord['sourceType'];
   sourceUri?: string | null;
   mimeType?: string | null;
+  folder?: string | null;
 }): DocumentRecord {
   const db = getDatabase();
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO documents (id, title, source_type, source_uri, mime_type)
-     VALUES (@id, @title, @sourceType, @sourceUri, @mimeType)`
+    `INSERT INTO documents (id, title, source_type, source_uri, mime_type, folder)
+     VALUES (@id, @title, @sourceType, @sourceUri, @mimeType, @folder)`
   ).run({
     id,
     title: input.title,
     sourceType: input.sourceType,
     sourceUri: input.sourceUri ?? null,
     mimeType: input.mimeType ?? null,
+    folder: input.folder ?? null,
   });
 
   const row = db.prepare('SELECT * FROM documents WHERE id = ?').get(id) as {
@@ -63,6 +66,7 @@ export function createDocument(input: {
     source_type: DocumentRecord['sourceType'];
     source_uri: string | null;
     mime_type: string | null;
+    folder: string | null;
     created_at: string;
   };
 
@@ -72,6 +76,7 @@ export function createDocument(input: {
     sourceType: row.source_type,
     sourceUri: row.source_uri,
     mimeType: row.mime_type,
+    folder: row.folder,
     createdAt: row.created_at,
   };
 }
@@ -122,21 +127,29 @@ export function insertEmbedding(params: { chunkId: string; vector: number[]; dim
   });
 }
 
-export function listDocuments(): DocumentRecord[] {
+export function listDocuments(filter?: { folder?: string }): DocumentRecord[] {
   const db = getDatabase();
+  const params: Record<string, unknown> = {};
+  const where: string[] = [];
+  if (filter?.folder) {
+    where.push('d.folder = @folder');
+    params.folder = filter.folder;
+  }
   const rows = db.prepare(
-    `SELECT d.id, d.title, d.source_type, d.source_uri, d.mime_type, d.created_at,
+    `SELECT d.id, d.title, d.source_type, d.source_uri, d.mime_type, d.folder, d.created_at,
             COUNT(c.id) as chunk_count
      FROM documents d
      LEFT JOIN chunks c ON c.document_id = d.id
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      GROUP BY d.id
      ORDER BY d.created_at DESC`
-  ).all() as Array<{
+  ).all(params) as Array<{
     id: string;
     title: string;
     source_type: DocumentRecord['sourceType'];
     source_uri: string | null;
     mime_type: string | null;
+    folder: string | null;
     created_at: string;
     chunk_count: number;
   }>;
@@ -147,9 +160,42 @@ export function listDocuments(): DocumentRecord[] {
     sourceType: row.source_type,
     sourceUri: row.source_uri,
     mimeType: row.mime_type,
+    folder: row.folder,
     createdAt: row.created_at,
     chunkCount: row.chunk_count,
   }));
+}
+
+export function listFolders(): Array<{ name: string; count: number }> {
+  const db = getDatabase();
+  return db
+    .prepare(
+      `SELECT folder as name, COUNT(*) as count
+       FROM documents
+       WHERE folder IS NOT NULL
+       GROUP BY folder
+       ORDER BY folder ASC`
+    )
+    .all() as Array<{ name: string; count: number }>;
+}
+
+export function updateDocumentFolder(documentId: string, folder: string | null): void {
+  const db = getDatabase();
+  db.prepare('UPDATE documents SET folder = @folder WHERE id = @id').run({ id: documentId, folder });
+}
+
+export function bulkUpdateDocumentFolders(mappings: Array<{ documentId: string; folder: string | null }>): {
+  updated: number;
+} {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE documents SET folder = @folder WHERE id = @documentId');
+  const update = db.transaction((rows: Array<{ documentId: string; folder: string | null }>) => {
+    for (const row of rows) {
+      stmt.run({ documentId: row.documentId, folder: row.folder });
+    }
+  });
+  update(mappings);
+  return { updated: mappings.length };
 }
 
 export function deleteDocument(documentId: string): void {
@@ -160,11 +206,13 @@ export function deleteDocument(documentId: string): void {
 export function listChunksWithEmbeddings(filters?: {
   docIds?: string[];
   docTitles?: string[];
+  folder?: string;
 }): Array<{
   chunkId: string;
   documentId: string;
   title: string;
   sourceType: DocumentRecord['sourceType'];
+  folder: string | null;
   chunkIndex: number;
   content: string;
   vector: Buffer;
@@ -182,9 +230,13 @@ export function listChunksWithEmbeddings(filters?: {
     });
     where.push(`d.id IN (${placeholders.join(', ')})`);
   }
+  if (filters?.folder) {
+    where.push('d.folder = @folder');
+    params.folder = filters.folder;
+  }
 
   const sql = `
-     SELECT c.id as chunkId, c.document_id as documentId, d.title, d.source_type as sourceType,
+     SELECT c.id as chunkId, c.document_id as documentId, d.title, d.source_type as sourceType, d.folder as folder,
             c.chunk_index as chunkIndex, c.content, e.vector, e.dim, e.model
      FROM chunks c
      JOIN embeddings e ON e.chunk_id = c.id
@@ -197,6 +249,7 @@ export function listChunksWithEmbeddings(filters?: {
     documentId: string;
     title: string;
     sourceType: DocumentRecord['sourceType'];
+    folder: string | null;
     chunkIndex: number;
     content: string;
     vector: Buffer;
@@ -276,9 +329,4 @@ export function listMemories(): MemoryRecord[] {
     source: row.source,
     createdAt: row.created_at,
   }));
-}
-
-export function clearMemoriesBySource(source: MemoryRecord['source']): void {
-  const db = getDatabase();
-  db.prepare('DELETE FROM memories WHERE source = ?').run(source);
 }

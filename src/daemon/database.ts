@@ -15,6 +15,8 @@ export function initDatabase(): Database.Database {
   }
 
   db = new Database(DB_PATH);
+  runRepoScanSchemaMigration(db);
+  runFolderColumnMigration(db);
 
   // Enable WAL mode for concurrent reads
   db.pragma('journal_mode = WAL');
@@ -48,9 +50,10 @@ export function initDatabase(): Database.Database {
     CREATE TABLE IF NOT EXISTS documents (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
-      source_type TEXT NOT NULL CHECK(source_type IN ('upload', 'repo_scan', 'manual')),
+      source_type TEXT NOT NULL CHECK(source_type IN ('upload', 'manual')),
       source_uri TEXT,
       mime_type TEXT,
+      folder TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -81,7 +84,7 @@ export function initDatabase(): Database.Database {
       category TEXT NOT NULL CHECK(category IN ('architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other')),
       title TEXT NOT NULL,
       content TEXT NOT NULL,
-      source TEXT NOT NULL CHECK(source IN ('repo_scan', 'manual')),
+      source TEXT NOT NULL CHECK(source IN ('manual')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -111,6 +114,82 @@ export function initDatabase(): Database.Database {
   `);
 
   return db;
+}
+
+function tableSqlIncludesRepoScan(database: Database.Database, tableName: string): boolean {
+  const row = database
+    .prepare('SELECT sql FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('table', tableName) as { sql?: string } | undefined;
+  return row?.sql?.includes('repo_scan') ?? false;
+}
+
+function runRepoScanSchemaMigration(database: Database.Database): void {
+  const documentsNeedsMigration = tableSqlIncludesRepoScan(database, 'documents');
+  const memoriesNeedsMigration = tableSqlIncludesRepoScan(database, 'memories');
+  if (!documentsNeedsMigration && !memoriesNeedsMigration) {
+    return;
+  }
+
+  database.exec('PRAGMA foreign_keys = OFF;');
+  const migrate = database.transaction(() => {
+    database.exec(`DELETE FROM documents WHERE source_type = 'repo_scan';`);
+    database.exec(`DELETE FROM memories WHERE source = 'repo_scan';`);
+
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS documents_new (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        source_type TEXT NOT NULL CHECK(source_type IN ('upload', 'manual')),
+        source_uri TEXT,
+        mime_type TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS memories_new (
+        id TEXT PRIMARY KEY,
+        category TEXT NOT NULL CHECK(category IN ('architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other')),
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('manual')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    database.exec(`
+      INSERT INTO documents_new (id, title, source_type, source_uri, mime_type, created_at)
+      SELECT id, title, source_type, source_uri, mime_type, created_at FROM documents;
+    `);
+
+    database.exec(`
+      INSERT INTO memories_new (id, category, title, content, source, created_at)
+      SELECT id, category, title, content, source, created_at FROM memories;
+    `);
+
+    database.exec('DROP TABLE documents;');
+    database.exec('ALTER TABLE documents_new RENAME TO documents;');
+    database.exec('DROP TABLE memories;');
+    database.exec('ALTER TABLE memories_new RENAME TO memories;');
+
+    database.exec('CREATE INDEX IF NOT EXISTS idx_doc_source_type ON documents(source_type);');
+    database.exec('CREATE INDEX IF NOT EXISTS idx_mem_category ON memories(category);');
+  });
+
+  migrate();
+  database.exec('PRAGMA foreign_keys = ON;');
+}
+
+function columnExists(database: Database.Database, tableName: string, columnName: string): boolean {
+  const rows = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === columnName);
+}
+
+function runFolderColumnMigration(database: Database.Database): void {
+  if (!columnExists(database, 'documents', 'folder')) {
+    database.exec('ALTER TABLE documents ADD COLUMN folder TEXT;');
+    database.exec('CREATE INDEX IF NOT EXISTS idx_doc_folder ON documents(folder);');
+  }
 }
 
 /**

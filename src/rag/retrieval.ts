@@ -6,6 +6,7 @@ export interface RetrievalOptions {
   minScore?: number;
   docIds?: string[];
   docTitles?: string[];
+  folder?: string;
 }
 
 export interface RetrievalHit {
@@ -30,7 +31,11 @@ export async function retrieveContext(
   }
 
   const queryArray = new Float32Array(queryVector);
-  const rows = listChunksWithEmbeddings({ docIds: options.docIds, docTitles: options.docTitles });
+  const rows = listChunksWithEmbeddings({
+    docIds: options.docIds,
+    docTitles: options.docTitles,
+    folder: options.folder,
+  });
 
   const scored: RetrievalHit[] = rows.map((row) => {
     const vector = decodeVector(row.vector);

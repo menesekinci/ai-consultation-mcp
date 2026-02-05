@@ -84,6 +84,10 @@ export class ConfigManager {
     }
 
     this.config = result.data;
+    
+    // Initialize services with loaded config
+    this.initializeServices();
+    
     return this.config;
   }
 
@@ -196,6 +200,12 @@ export class ConfigManager {
    */
   getProviderKey(provider: keyof Config['providers']): string | undefined {
     return this.config.providers[provider].apiKey;
+  }
+
+  /**
+   * Initialize services with loaded configuration
+   */
+  private initializeServices(): void {
   }
 
   /**

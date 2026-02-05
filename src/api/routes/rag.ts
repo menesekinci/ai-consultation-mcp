@@ -1,42 +1,43 @@
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { chunkText, estimateTokenCount } from '../../rag/chunking.js';
 import { embedTexts } from '../../rag/embeddings.js';
-import { createDocument, deleteDocument, insertChunks, insertEmbedding, listDocuments, listMemories, listAllChunks, listChunksByDocument } from '../../rag/storage.js';
+import {
+  createDocument,
+  deleteDocument,
+  insertChunks,
+  insertEmbedding,
+  listDocuments,
+  listMemories,
+  listAllChunks,
+  listChunksByDocument,
+  listFolders,
+  updateDocumentFolder,
+  bulkUpdateDocumentFolders,
+} from '../../rag/storage.js';
 import { retrieveContext, toSnippet } from '../../rag/retrieval.js';
+import { extractTextFromBuffer } from '../../rag/ingest.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-async function extractTextFromBuffer(buffer: Buffer, mimeType: string, filename: string): Promise<string> {
-  const ext = path.extname(filename).toLowerCase();
-
-  if (mimeType === 'application/pdf' || ext === '.pdf') {
-    const pdfParse = (await import('pdf-parse')).default;
-    const data = await pdfParse(buffer);
-    return data.text || '';
-  }
-
-  if (
-    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    ext === '.docx'
-  ) {
-    const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value || '';
-  }
-
-  return buffer.toString('utf8');
-}
-
-router.get('/documents', (_req: Request, res: Response) => {
+router.get('/documents', (req: Request, res: Response) => {
   try {
-    const documents = listDocuments();
+    const folder = typeof req.query.folder === 'string' ? req.query.folder : undefined;
+    const documents = listDocuments(folder ? { folder } : undefined);
     const memories = listMemories();
     res.json({ documents, memoryCount: memories.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list documents', message: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+router.get('/folders', (_req: Request, res: Response) => {
+  try {
+    const folders = listFolders();
+    res.json({ folders });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list folders', message: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -62,6 +63,9 @@ router.post('/upload', upload.array('files'), async (req: Request, res: Response
     for (const file of files) {
       const title = file.originalname;
       const mimeType = file.mimetype || 'application/octet-stream';
+      const folder = typeof (req.body as Record<string, unknown> | undefined)?.folder === 'string'
+        ? String((req.body as Record<string, unknown>).folder)
+        : null;
 
       const text = await extractTextFromBuffer(file.buffer, mimeType, file.originalname);
       const chunks = chunkText(text);
@@ -75,6 +79,7 @@ router.post('/upload', upload.array('files'), async (req: Request, res: Response
         sourceType: 'upload',
         sourceUri: file.originalname,
         mimeType,
+        folder,
       });
 
       const chunkRecords = insertChunks(
@@ -115,6 +120,37 @@ router.delete('/documents/:id', (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete document', message: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+router.patch('/documents/:id/folder', (req: Request, res: Response) => {
+  try {
+    const folder = typeof req.body?.folder === 'string' ? req.body.folder : null;
+    updateDocumentFolder(String(req.params.id), folder);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update folder', message: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+router.post('/documents/folders', (req: Request, res: Response) => {
+  try {
+    const mappings = Array.isArray(req.body?.mappings) ? req.body.mappings : [];
+    if (!mappings.length) {
+      res.status(400).json({ error: 'Mappings are required' });
+      return;
+    }
+    const normalized = mappings
+      .filter((m: any) => typeof m?.documentId === 'string' && typeof m?.folder === 'string')
+      .map((m: any) => ({ documentId: m.documentId, folder: m.folder }));
+    if (!normalized.length) {
+      res.status(400).json({ error: 'Valid mappings are required' });
+      return;
+    }
+    const result = bulkUpdateDocumentFolders(normalized);
+    res.json({ updated: result.updated });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update folders', message: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -168,10 +204,11 @@ router.post('/search', async (req: Request, res: Response) => {
 
     const docIds = Array.isArray(req.body?.docIds) ? req.body.docIds : undefined;
     const docTitles = Array.isArray(req.body?.docTitles) ? req.body.docTitles : undefined;
+    const folder = typeof req.body?.folder === 'string' ? req.body.folder : undefined;
     const topK = typeof req.body?.topK === 'number' ? req.body.topK : undefined;
     const minScore = typeof req.body?.minScore === 'number' ? req.body.minScore : undefined;
 
-    const result = await retrieveContext(query, { docIds, docTitles, topK, minScore });
+    const result = await retrieveContext(query, { docIds, docTitles, topK, minScore, folder });
     res.json({
       query,
       contextPreview: result.context,
