@@ -353,6 +353,18 @@
             ></span>
           </button>
           <button
+            @click="activeTab = 'rag'"
+            :class="activeTab === 'rag'
+              ? 'bg-accent-500 text-surface shadow-lg'
+              : 'text-neutral-400 hover:text-neutral-200 hover:bg-surface-200/50'"
+            class="flex items-center px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-300"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            RAG / Memory
+          </button>
+          <button
             @click="activeTab = 'readme'"
             :class="activeTab === 'readme'
               ? 'bg-accent-500 text-surface shadow-lg'
@@ -808,6 +820,135 @@
 
       </div><!-- END ARCHIVE TAB -->
 
+      <!-- RAG TAB -->
+      <div x-show="activeTab === 'rag'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
+        <section>
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-accent-500/10 rounded-xl flex items-center justify-center mr-3">
+                <svg class="w-5 h-5 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-semibold">RAG / Memory</h2>
+                <p class="text-sm text-neutral-500">Upload documents to build retrieval memory.</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="reindex()"
+                :disabled="ragLoading"
+                class="px-4 py-2 bg-surface-200 hover:bg-surface-300 rounded-xl text-sm font-medium transition-all duration-300 disabled:opacity-50"
+              >
+                Reindex
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Upload -->
+            <div class="glass-card rounded-2xl p-6 lg:col-span-1">
+              <h3 class="text-lg font-semibold mb-4">Upload Document</h3>
+              <input type="file" multiple @change="handleFileSelect" class="w-full text-sm text-neutral-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-surface-200 file:text-neutral-300 file:cursor-pointer">
+              <button
+                @click="uploadDocument()"
+                :disabled="!selectedFiles.length || ragLoading"
+                class="mt-4 w-full px-4 py-2 bg-accent-500 hover:bg-accent-600 text-surface rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+              >
+                Upload & Embed
+              </button>
+              <p class="text-xs text-neutral-500 mt-3">Supported: txt, md, pdf, docx (others will be best-effort)</p>
+            </div>
+
+            <!-- Documents -->
+            <div class="glass-card rounded-2xl p-6 lg:col-span-2">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Documents</h3>
+                <button @click="loadDocuments()" class="text-xs text-neutral-400 hover:text-neutral-200">Refresh</button>
+              </div>
+              <template x-if="ragDocuments.length === 0">
+                <div class="text-sm text-neutral-500">No documents yet.</div>
+              </template>
+              <div class="flex items-center justify-between mb-3" x-show="ragDocuments.length > 0">
+                <label class="flex items-center gap-2 text-xs text-neutral-400">
+                  <input type="checkbox" x-model="useSelectedDocsOnly" class="rounded border-surface-300 bg-surface-200">
+                  Search scope: selected docs only
+                </label>
+              </div>
+              <div class="space-y-3" x-show="ragDocuments.length > 0">
+                <template x-for="doc in ragDocuments" :key="doc.id">
+                  <div class="flex items-center justify-between p-3 rounded-xl bg-surface-200/60">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <input type="checkbox" :value="doc.id" x-model="selectedDocIds" class="rounded border-surface-300 bg-surface-200">
+                        <div class="text-sm font-medium text-neutral-200" x-text="doc.title"></div>
+                      </div>
+                      <div class="text-xs text-neutral-500" x-text="doc.sourceType + ' · ' + (doc.chunkCount || 0) + ' chunks'"></div>
+                    </div>
+                    <button @click="deleteDocument(doc.id)" class="text-xs text-red-400 hover:text-red-300">Delete</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Memories -->
+          <div class="glass-card rounded-2xl p-6 mt-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">Architecture / DB Memory</h3>
+              <button @click="loadMemories()" class="text-xs text-neutral-400 hover:text-neutral-200">Refresh</button>
+            </div>
+            <template x-if="ragMemories.length === 0">
+              <div class="text-sm text-neutral-500">No memory notes yet.</div>
+            </template>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" x-show="ragMemories.length > 0">
+              <template x-for="mem in ragMemories" :key="mem.id">
+                <div class="p-4 rounded-xl bg-surface-200/60">
+                  <div class="text-xs uppercase tracking-wide text-accent-400 mb-1" x-text="mem.category"></div>
+                  <div class="text-sm font-semibold text-neutral-200 mb-2" x-text="mem.title"></div>
+                  <div class="text-xs text-neutral-400 line-clamp-3" x-text="mem.content"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- RAG Test -->
+          <div class="glass-card rounded-2xl p-6 mt-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">RAG Test</h3>
+            </div>
+            <textarea x-model="ragTestQuery" rows="3" placeholder="Ask a question to test retrieval..." class="w-full px-3 py-2 bg-surface-200 rounded-lg border border-surface-300 text-sm focus:outline-none"></textarea>
+            <div class="grid grid-cols-2 gap-3 mt-3">
+              <input type="number" min="1" x-model.number="ragTestTopK" placeholder="topK (default 4)" class="w-full px-3 py-2 bg-surface-200 rounded-lg border border-surface-300 text-sm focus:outline-none">
+              <input type="number" step="0.01" min="0" max="1" x-model.number="ragTestMinScore" placeholder="minScore (default 0.35)" class="w-full px-3 py-2 bg-surface-200 rounded-lg border border-surface-300 text-sm focus:outline-none">
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <button
+                @click="runRagTest()"
+                :disabled="!ragTestQuery.trim() || ragLoading"
+                class="px-4 py-2 bg-accent-500 hover:bg-accent-600 text-surface rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+              >
+                Run Test
+              </button>
+            </div>
+            <template x-if="ragTestResult">
+              <div class="mt-4 space-y-3">
+                <div class="text-xs text-neutral-400">Top hits:</div>
+                <template x-for="hit in ragTestResult.hits" :key="hit.title + hit.chunkIndex">
+                  <div class="p-3 rounded-lg bg-surface-200/60">
+                    <div class="text-xs text-accent-400" x-text="hit.title + ' · score ' + hit.score.toFixed(3)"></div>
+                    <div class="text-xs text-neutral-400 mt-1 line-clamp-3" x-text="hit.snippet"></div>
+                  </div>
+                </template>
+                <div class="text-xs text-neutral-400">Context preview:</div>
+                <pre class="text-xs text-neutral-300 whitespace-pre-wrap bg-surface-200/60 p-3 rounded-lg" x-text="ragTestResult.contextPreview"></pre>
+              </div>
+            </template>
+          </div>
+        </section>
+      </div><!-- END RAG TAB -->
+
       <!-- README TAB -->
       <div x-show="activeTab === 'readme'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
         <section class="max-w-3xl mx-auto">
@@ -1188,11 +1329,23 @@
         // Conversation detail modal
         selectedConversation: null,
         showConversationModal: false,
+        // RAG state
+        ragDocuments: [],
+        ragMemories: [],
+        ragLoading: false,
+        selectedFiles: [],
+        selectedDocIds: [],
+        useSelectedDocsOnly: true,
+        ragTestQuery: '',
+        ragTestResult: null,
+        ragTestTopK: 4,
+        ragTestMinScore: 0.35,
         // Socket.io for real-time updates
         socket: null,
         connected: false,
         hasShownConnectedToast: false,
         clientCount: 0,
+        socketDisabled: false,
         // Flag to prevent duplicate toasts when saving config
         _savingConfig: false,
 
@@ -1285,14 +1438,129 @@
           }
         },
 
+        handleFileSelect(event) {
+          this.selectedFiles = Array.from(event.target.files || []);
+        },
+
+        async uploadDocument() {
+          if (!this.selectedFiles.length) return;
+          this.ragLoading = true;
+          try {
+            const formData = new FormData();
+            this.selectedFiles.forEach((file) => {
+              formData.append('files', file);
+            });
+            const res = await fetch('/api/rag/upload', { method: 'POST', body: formData });
+            if (!res.ok) {
+              const data = await res.json();
+              throw new Error(data.message || 'Upload failed');
+            }
+            this.showToast('Document uploaded and embedded', 'success');
+            this.selectedFiles = [];
+            await this.loadDocuments();
+          } catch (error) {
+            this.showToast('Upload failed: ' + error.message, 'error');
+          } finally {
+            this.ragLoading = false;
+          }
+        },
+
+        async loadDocuments() {
+          try {
+            const res = await fetch('/api/rag/documents');
+            if (!res.ok) throw new Error('Failed to load documents');
+            const data = await res.json();
+            this.ragDocuments = data.documents || [];
+          } catch (error) {
+            console.error('Failed to load documents:', error);
+          }
+        },
+
+        async deleteDocument(id) {
+          if (!confirm('Delete this document and all embeddings?')) return;
+          try {
+            const res = await fetch(`/api/rag/documents/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed');
+            this.showToast('Document deleted', 'success');
+            await this.loadDocuments();
+          } catch (error) {
+            this.showToast('Delete failed: ' + error.message, 'error');
+          }
+        },
+
+        async reindex() {
+          this.ragLoading = true;
+          try {
+            const res = await fetch('/api/rag/reindex', { method: 'POST' });
+            if (!res.ok) {
+              const data = await res.json();
+              throw new Error(data.message || 'Reindex failed');
+            }
+            this.showToast('Reindex completed', 'success');
+          } catch (error) {
+            this.showToast('Reindex failed: ' + error.message, 'error');
+          } finally {
+            this.ragLoading = false;
+          }
+        },
+
+        async loadMemories() {
+          try {
+            const res = await fetch('/api/rag/memories');
+            if (!res.ok) throw new Error('Failed to load memories');
+            const data = await res.json();
+            this.ragMemories = data.memories || [];
+          } catch (error) {
+            console.error('Failed to load memories:', error);
+          }
+        },
+
+        async runRagTest() {
+          if (!this.ragTestQuery.trim()) return;
+          this.ragLoading = true;
+          try {
+            const body = {
+              query: this.ragTestQuery,
+              topK: this.ragTestTopK,
+              minScore: this.ragTestMinScore,
+            };
+            if (this.useSelectedDocsOnly && this.selectedDocIds.length) {
+              body.docIds = this.selectedDocIds;
+            }
+
+            const res = await fetch('/api/rag/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+              const data = await res.json();
+              throw new Error(data.message || 'RAG test failed');
+            }
+            const data = await res.json();
+            this.ragTestResult = data;
+          } catch (error) {
+            this.showToast('RAG test failed: ' + error.message, 'error');
+          } finally {
+            this.ragLoading = false;
+          }
+        },
+
         async init() {
           try {
-            // Connect to daemon via WebSocket
-            this.connectSocket();
+            // Connect to daemon via WebSocket if available
+            const socketAvailable = await this.canUseSocket();
+            if (socketAvailable) {
+              this.connectSocket();
+            } else {
+              this.socketDisabled = true;
+            }
 
             await this.loadData();
             // Also load chat history on init
             this.loadChatHistory();
+            this.loadDocuments();
+            this.loadMemories();
           } catch (error) {
             console.error('Init failed:', error);
             this.loadError = error.message || 'Failed to initialize';
@@ -1302,7 +1570,17 @@
         },
 
         // Socket.io connection and event handling
+        async canUseSocket() {
+          try {
+            const res = await fetch('/socket.io/?EIO=4&transport=polling');
+            return res.status !== 404;
+          } catch {
+            return false;
+          }
+        },
+
         connectSocket() {
+          if (this.socketDisabled) return;
           try {
             this.socket = io(window.location.origin, {
               transports: ['websocket'],

@@ -20,6 +20,7 @@ import { getConfigManager } from '../config/index.js';
 import { configRoutes } from './routes/config.js';
 import { providerRoutes } from './routes/providers.js';
 import chatRoutes from './routes/chat.js';
+import { ragRoutes } from './routes/rag.js';
 import { securityMiddleware } from './middleware/security.js';
 
 // Get __dirname equivalent in ES modules
@@ -86,6 +87,7 @@ async function main(): Promise<void> {
   app.use('/api/config', configRoutes);
   app.use('/api/providers', providerRoutes);
   app.use('/api/chat', chatRoutes);
+  app.use('/api/rag', ragRoutes);
 
   // Serve static UI files
   const uiPath = path.join(__dirname, '../ui');

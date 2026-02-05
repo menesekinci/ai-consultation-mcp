@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { ConversationError } from '../utils/index.js';
+import { ConversationError, FileLock } from '../utils/index.js';
 import { MAX_MESSAGES_LIMIT, CONVERSATION_TIMEOUT_MS } from '../config/index.js';
 import type { Message, ModelType } from '../types/index.js';
 
@@ -60,8 +60,10 @@ export interface Conversation {
 export class ConversationManager {
   private conversations: Map<string, Conversation> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private fileLock: FileLock;
 
   constructor() {
+    this.fileLock = new FileLock(CONVERSATIONS_FILE);
     // Load any existing conversations from file into memory
     this.loadExistingConversations();
     // Start cleanup interval for timeout handling
@@ -78,24 +80,32 @@ export class ConversationManager {
         return;
       }
 
-      const data = fs.readFileSync(CONVERSATIONS_FILE, 'utf-8');
-      const serialized: SerializedConversation[] = JSON.parse(data);
+      this.fileLock.acquireSync();
+      try {
+        const data = fs.readFileSync(CONVERSATIONS_FILE, 'utf-8');
+        const serialized: SerializedConversation[] = JSON.parse(data);
 
-      // Load into memory map
-      for (const conv of serialized) {
-        const conversation: Conversation = {
-          id: conv.id,
-          model: conv.model,
-          messages: conv.messages,
-          systemPrompt: conv.systemPrompt,
-          createdAt: new Date(conv.createdAt),
-          lastActivityAt: new Date(conv.lastActivityAt),
-        };
-        this.conversations.set(conversation.id, conversation);
-      }
+        // Clear existing to avoid duplicates if re-loading
+        this.conversations.clear();
 
-      if (serialized.length > 0) {
-        console.log(`[ConversationManager] Loaded ${serialized.length} existing conversations`);
+        // Load into memory map
+        for (const conv of serialized) {
+          const conversation: Conversation = {
+            id: conv.id,
+            model: conv.model,
+            messages: conv.messages,
+            systemPrompt: conv.systemPrompt,
+            createdAt: new Date(conv.createdAt),
+            lastActivityAt: new Date(conv.lastActivityAt),
+          };
+          this.conversations.set(conversation.id, conversation);
+        }
+
+        if (serialized.length > 0) {
+          console.log(`[ConversationManager] Loaded ${serialized.length} existing conversations`);
+        }
+      } finally {
+        this.fileLock.release();
       }
     } catch (error) {
       console.error('[ConversationManager] Failed to load existing conversations:', error);
@@ -107,6 +117,32 @@ export class ConversationManager {
    */
   private saveToFile(): void {
     try {
+      // Reload first to merge potential changes from other processes
+      if (fs.existsSync(CONVERSATIONS_FILE)) {
+        this.fileLock.acquireSync();
+        try {
+          const data = fs.readFileSync(CONVERSATIONS_FILE, 'utf-8');
+          const serialized: SerializedConversation[] = JSON.parse(data);
+          for (const conv of serialized) {
+            // Keep existing ones from other processes if we don't have them
+            if (!this.conversations.has(conv.id)) {
+              this.conversations.set(conv.id, {
+                id: conv.id,
+                model: conv.model,
+                messages: conv.messages,
+                systemPrompt: conv.systemPrompt,
+                createdAt: new Date(conv.createdAt),
+                lastActivityAt: new Date(conv.lastActivityAt),
+              });
+            }
+          }
+        } catch (e) {
+          // Ignore error on reload merge
+        } finally {
+          this.fileLock.release();
+        }
+      }
+
       const data: SerializedConversation[] = Array.from(this.conversations.values()).map(conv => ({
         id: conv.id,
         model: conv.model,
@@ -122,7 +158,14 @@ export class ConversationManager {
         fs.mkdirSync(configDir, { recursive: true });
       }
 
-      fs.writeFileSync(CONVERSATIONS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+      this.fileLock.acquireSync();
+      try {
+        const tempFile = CONVERSATIONS_FILE + '.tmp';
+        fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+        fs.renameSync(tempFile, CONVERSATIONS_FILE);
+      } finally {
+        this.fileLock.release();
+      }
     } catch (error) {
       console.error('Failed to save conversations:', error);
     }

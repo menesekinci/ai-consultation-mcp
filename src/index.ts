@@ -10,13 +10,18 @@ import {
   consultAgent,
   continueConversation,
   endConversation,
+  ragSearch,
+  ragListDocs,
+  ragListMemories,
+  ragGetDocChunks,
+  ragAddMemory,
 } from './server/index.js';
 import { initializeProviders } from './providers/index.js';
 import { startConfigUI, openWebUI } from './api/index.js';
 import { installToAllTools, printInstallSummary, uninstallFromAllTools, printUninstallSummary, SUPPORTED_TOOLS } from './installer/index.js';
 
 // Proxy imports for new architecture
-import { createDaemonClient, openWebUI as openProxyWebUI } from './proxy/daemon-client.js';
+import { createDaemonClient, openWebUI as openProxyWebUI, ensureDaemonRunning } from './proxy/daemon-client.js';
 import {
   handleConsultAgent,
   handleContinueConversation,
@@ -149,6 +154,8 @@ async function startProxyMode(): Promise<void> {
         .string()
         .optional()
         .describe('Supporting context: code snippets, error messages, your current approach'),
+      docIds: z.array(z.string().uuid()).optional().describe('Restrict RAG search to these document IDs'),
+      docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
       try {
@@ -174,6 +181,8 @@ async function startProxyMode(): Promise<void> {
     {
       conversationId: z.string().uuid().describe('The conversation ID from a previous consult_agent call'),
       message: z.string().describe('Your follow-up question or response'),
+      docIds: z.array(z.string().uuid()).optional().describe('Restrict RAG search to these document IDs'),
+      docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
       try {
@@ -216,6 +225,140 @@ async function startProxyMode(): Promise<void> {
     }
   );
 
+  async function callDaemonRag(path: string, options: { method?: string; body?: unknown } = {}) {
+    const lock = await ensureDaemonRunning();
+    const url = `http://127.0.0.1:${lock.port}/api/rag${path}`;
+    const res = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-daemon-token': lock.token,
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `RAG request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  server.tool(
+    'rag_search',
+    'Search RAG documents with optional filters',
+    {
+      query: z.string().describe('Search query'),
+      docIds: z.array(z.string().uuid()).optional().describe('Restrict to document IDs'),
+      docTitles: z.array(z.string()).optional().describe('Restrict to document titles'),
+      topK: z.number().optional().describe('Number of top results'),
+      minScore: z.number().optional().describe('Minimum similarity score'),
+    },
+    async (args) => {
+      try {
+        const result = await callDaemonRag('/search', { method: 'POST', body: args });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_list_docs',
+    'List available RAG documents',
+    {},
+    async () => {
+      try {
+        const result = await callDaemonRag('/documents');
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_list_memories',
+    'List structured memory notes',
+    {},
+    async () => {
+      try {
+        const result = await callDaemonRag('/memories');
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_add_memory',
+    'Add a memory note that will be embedded for RAG search',
+    {
+      category: z.enum(['architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other']),
+      title: z.string().describe('Short memory title'),
+      content: z.string().describe('Memory content'),
+    },
+    async (args) => {
+      try {
+        const result = await ragAddMemory(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_add_memory',
+    'Add a memory note that will be embedded for RAG search',
+    {
+      category: z.enum(['architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other']),
+      title: z.string().describe('Short memory title'),
+      content: z.string().describe('Memory content'),
+    },
+    async (args) => {
+      try {
+        const result = await callDaemonRag('/memory', { method: 'POST', body: args });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_get_doc_chunks',
+    'Get all chunks for a document',
+    { documentId: z.string().uuid().describe('Document ID') },
+    async (args) => {
+      try {
+        const result = await callDaemonRag(`/documents/${args.documentId}/chunks`);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('[MCP] Proxy connected and ready');
@@ -243,6 +386,8 @@ async function startLegacyMode(): Promise<void> {
       question: z.string().describe('The problem, approach, or decision you want a second opinion on'),
       mode: z.enum(CONSULTATION_MODES).optional().describe('Consultation focus'),
       context: z.string().optional().describe('Supporting context'),
+      docIds: z.array(z.string().uuid()).optional().describe('Restrict RAG search to these document IDs'),
+      docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
       openWebUI().catch(() => {});
@@ -264,6 +409,8 @@ async function startLegacyMode(): Promise<void> {
     {
       conversationId: z.string().uuid().describe('The conversation ID'),
       message: z.string().describe('Your follow-up question'),
+      docIds: z.array(z.string().uuid()).optional().describe('Restrict RAG search to these document IDs'),
+      docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
       openWebUI().catch(() => {});
@@ -289,6 +436,80 @@ async function startLegacyMode(): Promise<void> {
       openWebUI().catch(() => {});
       try {
         const result = await endConversation(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_search',
+    'Search RAG documents with optional filters',
+    {
+      query: z.string().describe('Search query'),
+      docIds: z.array(z.string().uuid()).optional().describe('Restrict to document IDs'),
+      docTitles: z.array(z.string()).optional().describe('Restrict to document titles'),
+      topK: z.number().optional().describe('Number of top results'),
+      minScore: z.number().optional().describe('Minimum similarity score'),
+    },
+    async (args) => {
+      try {
+        const result = await ragSearch(args);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_list_docs',
+    'List available RAG documents',
+    {},
+    async () => {
+      try {
+        const result = ragListDocs();
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_list_memories',
+    'List structured memory notes',
+    {},
+    async () => {
+      try {
+        const result = ragListMemories();
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'rag_get_doc_chunks',
+    'Get all chunks for a document',
+    { documentId: z.string().uuid().describe('Document ID') },
+    async (args) => {
+      try {
+        const result = ragGetDocChunks(args);
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error) {
         return {

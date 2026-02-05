@@ -55,14 +55,14 @@ async function shutdown(): Promise<void> {
  * Find an available port, trying to free the default port first
  */
 async function findAvailablePort(startPort: number, isDefault = true): Promise<number> {
-  // For the default port, try to free it first
+  // Check if port is available
   if (isDefault) {
-    const portCheck = await ensurePortAvailable(startPort, { autoKill: true, silent: false });
+    const portCheck = await ensurePortAvailable(startPort, { autoKill: false, silent: false });
     if (portCheck.available) {
       return startPort;
     }
-    // If we couldn't free it, try next port
-    console.log(`   Trying alternative port ${startPort + 1}...`);
+    // If not available, try next port
+    console.log(`   Port ${startPort} is busy. Trying alternative port ${startPort + 1}...`);
     return findAvailablePort(startPort + 1, false);
   }
 
@@ -104,7 +104,8 @@ async function main(): Promise<void> {
   const port = await findAvailablePort(DEFAULT_PORT);
 
   // Acquire lock
-  if (!acquireLock(port)) {
+  const lock = acquireLock(port);
+  if (!lock) {
     console.error('[Daemon] Failed to acquire lock');
     process.exit(1);
   }
@@ -126,7 +127,7 @@ async function main(): Promise<void> {
 
   // Create and start server
   try {
-    server = createDaemonServer(port);
+    server = createDaemonServer(port, lock.token);
     await server.start();
   } catch (error) {
     console.error('[Daemon] Failed to start server:', error);

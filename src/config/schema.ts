@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MODEL_TYPES } from '../types/index.js';
+import { CONVERSATION_LIMITS } from './defaults.js';
 
 /**
  * Provider configuration schema
@@ -14,7 +15,7 @@ export const providerConfigSchema = z.object({
  */
 export const configSchema = z.object({
   defaultModel: z.enum(MODEL_TYPES),
-  maxMessages: z.number().int().min(1).max(10),
+  maxMessages: z.number().int().min(1).max(CONVERSATION_LIMITS.MAX_ALLOWED_MESSAGES),
   requestTimeout: z.number().int().min(30000).max(600000).default(180000), // 30s to 10min, default 3min
   autoOpenWebUI: z.boolean().default(true), // Auto-open Web UI when agent uses tools
   providers: z.object({
@@ -45,6 +46,8 @@ export const consultRequestSchema = z.object({
   model: z.enum(MODEL_TYPES).optional(),
   mode: z.enum(CONSULTATION_MODES).optional(),
   context: z.string().optional(),
+  docIds: z.array(z.string().uuid()).optional(),
+  docTitles: z.array(z.string()).optional(),
 });
 
 /**
@@ -53,6 +56,8 @@ export const consultRequestSchema = z.object({
 export const continueRequestSchema = z.object({
   conversationId: z.string().uuid('Invalid conversation ID'),
   message: z.string().min(1, 'Message is required'),
+  docIds: z.array(z.string().uuid()).optional(),
+  docTitles: z.array(z.string()).optional(),
 });
 
 /**

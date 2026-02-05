@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import { getDatabase, configQueries } from '../database.js';
 import type { Config } from '../../types/index.js';
 import { DEFAULT_CONFIG } from '../../config/defaults.js';
+import { encrypt, decrypt } from '../../config/index.js';
 
 /**
  * Get full config from database
@@ -13,6 +14,23 @@ export function getConfig(): Config {
   const configMap = new Map(rows.map((r) => [r.key, r.value]));
 
   // Build config from stored values or defaults
+  let providers = DEFAULT_CONFIG.providers;
+  const storedProviders = configMap.get('providers');
+  if (storedProviders) {
+    try {
+      // Try to decrypt first
+      const decrypted = decrypt(storedProviders);
+      providers = JSON.parse(decrypted);
+    } catch {
+      // Fallback: maybe it was stored as plaintext JSON before
+      try {
+        providers = JSON.parse(storedProviders);
+      } catch (e) {
+        console.error('[Daemon] Failed to parse providers config:', e);
+      }
+    }
+  }
+
   return {
     defaultModel: (configMap.get('defaultModel') as Config['defaultModel']) || DEFAULT_CONFIG.defaultModel,
     maxMessages: parseInt(configMap.get('maxMessages') || String(DEFAULT_CONFIG.maxMessages), 10),
@@ -20,9 +38,7 @@ export function getConfig(): Config {
     autoOpenWebUI: configMap.has('autoOpenWebUI')
       ? configMap.get('autoOpenWebUI') === 'true'
       : DEFAULT_CONFIG.autoOpenWebUI,
-    providers: configMap.has('providers')
-      ? JSON.parse(configMap.get('providers')!)
-      : DEFAULT_CONFIG.providers,
+    providers,
   };
 }
 
@@ -46,7 +62,8 @@ export function updateConfig(updates: Partial<Config>): void {
     setQuery.run({ key: 'autoOpenWebUI', value: String(updates.autoOpenWebUI) });
   }
   if (updates.providers !== undefined) {
-    setQuery.run({ key: 'providers', value: JSON.stringify(updates.providers) });
+    const encrypted = encrypt(JSON.stringify(updates.providers));
+    setQuery.run({ key: 'providers', value: encrypted });
   }
 }
 

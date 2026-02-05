@@ -75,6 +75,8 @@ router.get('/history', (_req: Request, res: Response) => {
       count: allConversations.length,
       activeCount: active.length,
       archivedCount: archived.length,
+      active,
+      archived,
       conversations: allConversations,
     });
   } catch (error) {

@@ -15,6 +15,7 @@ An MCP (Model Context Protocol) server that enables AI agents to get a **second 
 - **Conversation Management**: Continue multi-turn conversations with context
 - **Web UI**: Configure providers and API keys through a browser interface
 - **Encrypted Storage**: API keys are encrypted at rest
+- **RAG + Memory**: Upload documents, add memory notes, and use them during consultations
 
 ## Quick Start (2 steps)
 
@@ -111,6 +112,21 @@ This opens a web UI where you can:
 - Change default model
 - View conversation history
 
+## RAG / Memory (Experimental)
+
+This build includes a local RAG pipeline that can embed uploaded documents and repo scan notes.
+
+### Start local embedding server
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r scripts/embedding_server_requirements.txt
+python scripts/embedding_server.py
+```
+
+The server listens on `http://127.0.0.1:7999/embed` by default. You can override with `RAG_EMBED_URL`.
+
 ### Supported Providers
 
 | Provider | Models | API Key |
@@ -131,6 +147,8 @@ Parameters:
 - question (required): The question or problem to get advice on
 - mode (optional): Consultation mode - debug, analyzeCode, reviewArchitecture, validatePlan, explainConcept, general
 - context (optional): Additional context like code snippets or error messages
+- docIds (optional): Restrict RAG to these document IDs
+- docTitles (optional): Restrict RAG to matching document titles
 ```
 
 ### continue_conversation
@@ -141,6 +159,8 @@ Continue an existing consultation conversation.
 Parameters:
 - conversationId (required): The conversation ID from a previous consultation
 - message (required): Your follow-up message
+- docIds (optional): Restrict RAG to these document IDs
+- docTitles (optional): Restrict RAG to matching document titles
 ```
 
 ### end_conversation
@@ -150,6 +170,41 @@ End an active consultation conversation.
 ```
 Parameters:
 - conversationId (required): The conversation ID to end
+
+### rag_search
+
+Search RAG documents with optional filters.
+
+Parameters:
+- query (required): Search query
+- docIds (optional): Restrict to document IDs
+- docTitles (optional): Restrict to document titles
+- topK (optional): Number of results (default 4)
+- minScore (optional): Minimum similarity score (default 0.35)
+
+### rag_list_docs
+
+List available RAG documents.
+
+### rag_list_memories
+
+List structured memory notes.
+
+### rag_get_doc_chunks
+
+Get all chunks for a document.
+
+Parameters:
+- documentId (required)
+
+### rag_add_memory
+
+Add a memory note (embedded and searchable by RAG).
+
+Parameters:
+- category (required): architecture | backend | db | auth | config | flow | other
+- title (required): Short memory title
+- content (required): Memory content
 ```
 
 ## Example
@@ -187,6 +242,38 @@ npm run dev
 # Build for production
 npm run build
 ```
+
+## RAG / Memory (Experimental)
+
+This build includes a local RAG pipeline that can embed uploaded documents and memory notes.
+
+### Start local embedding server
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r scripts/embedding_server_requirements.txt
+python scripts/embedding_server.py
+```
+
+The server listens on `http://127.0.0.1:7999/embed` by default. You can override with `RAG_EMBED_URL`.
+
+### Add memory notes (example)
+
+```json
+{
+  "tool": "rag_add_memory",
+  "category": "auth",
+  "title": "Login flow",
+  "content": "POST /auth/login -> validate -> issue JWT -> response Authorization header"
+}
+```
+
+### UI RAG tab
+
+- Upload multiple documents (txt, md, pdf, docx)
+- Select documents to scope searches
+- RAG Test with topK/minScore controls
 
 ## License
 

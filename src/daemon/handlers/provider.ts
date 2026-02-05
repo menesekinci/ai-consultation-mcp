@@ -3,6 +3,8 @@ import OpenAI from 'openai';
 import { getConfig } from './config.js';
 import { addMessage, getConversation, archiveConversation } from './conversation.js';
 import type { ModelType } from '../../types/index.js';
+import { withRetry } from '../../utils/index.js';
+import { retrieveContext } from '../../rag/retrieval.js';
 
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -12,6 +14,8 @@ interface ConsultRequest {
   question: string;
   context?: string;
   model?: ModelType;
+  docIds?: string[];
+  docTitles?: string[];
 }
 
 interface ConsultResponse {
@@ -68,12 +72,16 @@ async function callProvider(
     throw new Error(`Provider not configured for model: ${model}`);
   }
 
-  const response = await client.chat.completions.create({
+  const response = await withRetry(() => client.chat.completions.create({
     model,
     messages: messages.map((m) => ({
-      role: m.role,
+      role: m.role as any,
       content: m.content,
     })),
+  }), {
+    onRetry: (_error, attempt, delay) => {
+      console.log(`[Provider] Retrying ${model} call (attempt ${attempt}) after ${delay}ms...`);
+    }
   });
 
   const content = response.choices[0]?.message?.content;
@@ -122,6 +130,14 @@ async function handleConsult(
 
     if (conv.systemPrompt) {
       apiMessages.push({ role: 'system', content: conv.systemPrompt });
+    }
+
+    const rag = await retrieveContext(data.question, {
+      docIds: data.docIds,
+      docTitles: data.docTitles,
+    });
+    if (rag.context) {
+      apiMessages.push({ role: 'system', content: rag.context });
     }
 
     // Add conversation history

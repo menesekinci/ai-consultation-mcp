@@ -44,6 +44,47 @@ export function initDatabase(): Database.Database {
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     );
 
+    -- RAG documents
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      source_type TEXT NOT NULL CHECK(source_type IN ('upload', 'repo_scan', 'manual')),
+      source_uri TEXT,
+      mime_type TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- RAG chunks
+    CREATE TABLE IF NOT EXISTS chunks (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      token_count INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    );
+
+    -- RAG embeddings
+    CREATE TABLE IF NOT EXISTS embeddings (
+      chunk_id TEXT PRIMARY KEY,
+      vector BLOB NOT NULL,
+      dim INTEGER NOT NULL,
+      model TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
+    );
+
+    -- Structured memories
+    CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL CHECK(category IN ('architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other')),
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source TEXT NOT NULL CHECK(source IN ('repo_scan', 'manual')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Config table (key-value store)
     CREATE TABLE IF NOT EXISTS config (
       key TEXT PRIMARY KEY,
@@ -64,6 +105,9 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_conv_updated ON conversations(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_msg_created ON messages(created_at);
+    CREATE INDEX IF NOT EXISTS idx_doc_source_type ON documents(source_type);
+    CREATE INDEX IF NOT EXISTS idx_chunk_doc ON chunks(document_id);
+    CREATE INDEX IF NOT EXISTS idx_mem_category ON memories(category);
   `);
 
   return db;

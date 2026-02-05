@@ -1,11 +1,19 @@
 import type { Config } from '../types/index.js';
 
 /**
+ * Configuration constants
+ */
+export const CONVERSATION_LIMITS = {
+  DEFAULT_MAX_MESSAGES: 5,
+  MAX_ALLOWED_MESSAGES: 50,
+};
+
+/**
  * Default configuration values
  */
 export const DEFAULT_CONFIG: Config = {
   defaultModel: 'deepseek-reasoner',
-  maxMessages: 5,
+  maxMessages: CONVERSATION_LIMITS.DEFAULT_MAX_MESSAGES,
   requestTimeout: 180000, // 3 minutes default
   autoOpenWebUI: true, // Auto-open Web UI when agent uses tools
   providers: {
@@ -26,9 +34,9 @@ Provide thoughtful, well-reasoned responses that offer a fresh perspective.
 Be concise but thorough in your analysis.`;
 
 /**
- * Maximum allowed messages per conversation
+ * Maximum allowed messages per conversation (used by legacy conversation manager)
  */
-export const MAX_MESSAGES_LIMIT = 5;
+export const MAX_MESSAGES_LIMIT = CONVERSATION_LIMITS.DEFAULT_MAX_MESSAGES;
 
 /**
  * Conversation timeout in milliseconds (30 minutes)

@@ -9,6 +9,7 @@ import { ensurePortAvailable } from '../utils/portKiller.js';
 import { configRoutes } from './routes/config.js';
 import { providerRoutes } from './routes/providers.js';
 import chatRoutes from './routes/chat.js';
+import { ragRoutes } from './routes/rag.js';
 import { securityMiddleware } from './middleware/security.js';
 
 // Get __dirname equivalent in ES modules
@@ -34,10 +35,10 @@ export async function startConfigUI(options: ConfigUIOptions = {}): Promise<void
   const port = options.port ?? DEFAULT_PORT;
   const shouldOpenBrowser = options.openBrowser ?? true;
 
-  // Check if port is available, try to free it if not
-  const portCheck = await ensurePortAvailable(port, { autoKill: true, silent: false });
+  // Check if port is available
+  const portCheck = await ensurePortAvailable(port, { autoKill: false, silent: false });
   if (!portCheck.available) {
-    throw new Error(`Port ${port} is in use and could not be freed. Try a different port with --port ${port + 1}`);
+    throw new Error(`Port ${port} is already in use by another process (PID: ${portCheck.pid}).\nPlease stop that process or specify a different port using --port ${port + 1}`);
   }
 
   // Ensure config is loaded
@@ -54,6 +55,7 @@ export async function startConfigUI(options: ConfigUIOptions = {}): Promise<void
   app.use('/api/config', configRoutes);
   app.use('/api/providers', providerRoutes);
   app.use('/api/chat', chatRoutes);
+  app.use('/api/rag', ragRoutes);
 
   // Serve static UI files
   const uiPath = path.join(__dirname, '../ui');

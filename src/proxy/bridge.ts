@@ -5,11 +5,15 @@ export interface ConsultArgs {
   question: string;
   mode?: string;
   context?: string;
+  docIds?: string[];
+  docTitles?: string[];
 }
 
 export interface ContinueArgs {
   conversationId: string;
   message: string;
+  docIds?: string[];
+  docTitles?: string[];
 }
 
 export interface EndArgs {
@@ -125,6 +129,8 @@ export async function handleConsultAgent(
         conversationId: conversation.id,
         question: args.question,
         context: args.context,
+        docIds: args.docIds,
+        docTitles: args.docTitles,
         model: config.defaultModel,
       },
       resolve
@@ -181,6 +187,8 @@ export async function handleContinueConversation(
       {
         conversationId: args.conversationId,
         question: args.message,
+        docIds: args.docIds,
+        docTitles: args.docTitles,
         model: conversation.model,
       },
       resolve

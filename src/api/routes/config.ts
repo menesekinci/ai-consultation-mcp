@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getConfigManager } from '../../config/index.js';
 import { MODEL_TYPES } from '../../types/index.js';
 import type { ModelType } from '../../types/index.js';
+import { CONVERSATION_LIMITS } from '../../config/defaults.js';
 
 const router = Router();
 
@@ -61,10 +62,10 @@ router.patch('/', async (req, res) => {
     // Validate maxMessages
     if (maxMessages !== undefined) {
       const num = parseInt(maxMessages, 10);
-      if (isNaN(num) || num < 1 || num > 50) {
+      if (isNaN(num) || num < 1 || num > CONVERSATION_LIMITS.MAX_ALLOWED_MESSAGES) {
         res.status(400).json({
           error: 'Invalid maxMessages',
-          message: 'maxMessages must be between 1 and 50',
+          message: `maxMessages must be between 1 and ${CONVERSATION_LIMITS.MAX_ALLOWED_MESSAGES}`,
         });
         return;
       }

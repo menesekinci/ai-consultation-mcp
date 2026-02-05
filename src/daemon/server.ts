@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ragRoutes } from '../api/routes/rag.js';
 import {
   registerConfigHandlers,
   registerConversationHandlers,
@@ -16,6 +17,7 @@ import {
 import { getDatabase, conversationQueries, type DbConversation } from './database.js';
 import { MODEL_TO_PROVIDER, MODEL_CONFIG, MODEL_TYPES } from '../types/index.js';
 import type { ProviderType, ModelType } from '../types/index.js';
+import { CONVERSATION_LIMITS } from '../config/defaults.js';
 
 // Provider display information
 const PROVIDER_INFO: Record<ProviderType, { name: string; description: string }> = {
@@ -48,7 +50,7 @@ const connectedClients = new Map<string, ConnectedClient>();
 /**
  * Create and configure the daemon server
  */
-export function createDaemonServer(port: number): {
+export function createDaemonServer(port: number, authToken?: string): {
   io: Server;
   httpServer: ReturnType<typeof createServer>;
   start: () => Promise<void>;
@@ -67,8 +69,31 @@ export function createDaemonServer(port: number): {
     pingInterval: 10000,
   });
 
+  // Socket.io authentication middleware
+  if (authToken) {
+    io.use((socket, next) => {
+      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      if (token === authToken) {
+        return next();
+      }
+      console.log(`[Daemon] Authentication failed for socket: ${socket.id}`);
+      return next(new Error('Authentication failed'));
+    });
+  }
+
   // Middleware
   app.use(express.json());
+
+  // REST API authentication middleware
+  if (authToken) {
+    app.use('/api', (req, res, next) => {
+      const token = req.headers['x-daemon-token'] || req.query.token;
+      if (token === authToken) {
+        return next();
+      }
+      res.status(401).json({ error: 'Unauthorized', message: 'Invalid daemon token' });
+    });
+  }
 
   // Serve static UI files
   const uiPath = path.join(__dirname, '..', 'ui');
@@ -82,6 +107,8 @@ export function createDaemonServer(port: number): {
       uptime: process.uptime(),
     });
   });
+
+  app.use('/api/rag', ragRoutes);
 
   app.get('/api/config', (_req, res) => {
     try {
@@ -118,7 +145,7 @@ export function createDaemonServer(port: number): {
       }
       if (maxMessages !== undefined) {
         const num = parseInt(maxMessages, 10);
-        if (isNaN(num) || num < 1 || num > 50) {
+        if (isNaN(num) || num < 1 || num > CONVERSATION_LIMITS.MAX_ALLOWED_MESSAGES) {
           res.status(400).json({ error: 'Invalid maxMessages' });
           return;
         }

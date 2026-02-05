@@ -17,6 +17,7 @@ interface DaemonLock {
   pid: number;
   port: number;
   startedAt: string;
+  token: string;
 }
 
 /**
@@ -49,28 +50,43 @@ function isProcessRunning(pid: number): boolean {
 /**
  * Start daemon process
  */
-async function startDaemon(): Promise<number> {
+async function startDaemon(): Promise<void> {
   const daemonPath = path.join(__dirname, '..', 'daemon', 'index.js');
 
+  const child = spawn(process.execPath, [daemonPath], {
+    detached: true,
+    stdio: 'ignore',
+  });
+
+  child.unref();
+}
+
+/**
+ * Ensure daemon is running and get its lock info
+ */
+export async function ensureDaemonRunning(): Promise<DaemonLock> {
+  const lock = readLockFile();
+
+  if (lock && isProcessRunning(lock.pid)) {
+    return lock;
+  }
+
+  // Daemon not running, start it
+  console.error('[Proxy] Starting daemon...');
+  await startDaemon();
+
+  // Wait for lock file to appear
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [daemonPath], {
-      detached: true,
-      stdio: 'ignore',
-    });
-
-    child.unref();
-
-    // Wait for daemon to start
     let attempts = 0;
-    const maxAttempts = 30; // 3 seconds
+    const maxAttempts = 50; // 5 seconds
 
     const checkDaemon = setInterval(() => {
       attempts++;
-      const lock = readLockFile();
+      const currentLock = readLockFile();
 
-      if (lock && isProcessRunning(lock.pid)) {
+      if (currentLock && isProcessRunning(currentLock.pid)) {
         clearInterval(checkDaemon);
-        resolve(lock.port);
+        resolve(currentLock);
         return;
       }
 
@@ -83,33 +99,19 @@ async function startDaemon(): Promise<number> {
 }
 
 /**
- * Ensure daemon is running and get its port
- */
-export async function ensureDaemonRunning(): Promise<number> {
-  const lock = readLockFile();
-
-  if (lock && isProcessRunning(lock.pid)) {
-    return lock.port;
-  }
-
-  // Daemon not running, start it
-  console.error('[Proxy] Starting daemon...');
-  return startDaemon();
-}
-
-/**
  * Connect to daemon via WebSocket
  */
 export async function connectToDaemon(): Promise<Socket> {
-  const port = await ensureDaemonRunning();
+  const lock = await ensureDaemonRunning();
 
   return new Promise((resolve, reject) => {
-    const socket = io(`http://127.0.0.1:${port}`, {
+    const socket = io(`http://127.0.0.1:${lock.port}`, {
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 10,
       query: { type: 'proxy' },
+      auth: { token: lock.token },
     });
 
     const timeout = setTimeout(() => {

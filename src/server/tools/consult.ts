@@ -21,6 +21,7 @@ import {
   type ProviderMessage,
   type ProviderResponse,
 } from '../../providers/index.js';
+import { retrieveContext } from '../../rag/retrieval.js';
 
 /**
  * Summarize reasoning content for display
@@ -109,6 +110,11 @@ export async function consultAgent(
 
   // Get system prompt for the mode
   const systemPrompt = getSystemPromptForMode(mode as ConsultationMode);
+  const rag = await retrieveContext(validated.question, {
+    docIds: validated.docIds,
+    docTitles: validated.docTitles,
+  });
+  const finalSystemPrompt = rag.context ? `${systemPrompt}\n\n${rag.context}` : systemPrompt;
 
   // Create conversation
   const conversation = conversationManager.create(model, systemPrompt);
@@ -124,7 +130,7 @@ export async function consultAgent(
 
   // Get AI response
   const messages = toProviderMessages(conversation.id);
-  const response = await getProviderResponse(messages, model, systemPrompt);
+  const response = await getProviderResponse(messages, model, finalSystemPrompt);
 
   // Add assistant response
   conversationManager.addMessage(conversation.id, 'assistant', response.content);
@@ -187,10 +193,17 @@ export async function continueConversation(
 
   // Get AI response
   const messages = toProviderMessages(validated.conversationId);
+  const rag = await retrieveContext(validated.message, {
+    docIds: validated.docIds,
+    docTitles: validated.docTitles,
+  });
+  const systemPrompt = rag.context
+    ? `${conversation.systemPrompt || ''}\n\n${rag.context}`.trim()
+    : (conversation.systemPrompt || '');
   const response = await getProviderResponse(
     messages,
     conversation.model,
-    conversation.systemPrompt
+    systemPrompt
   );
 
   // Add assistant response

@@ -1,11 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
+import { execSync } from 'child_process';
 
 export interface DaemonLock {
   pid: number;
   port: number;
   startedAt: string;
+  token: string;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), '.ai-consultation-mcp');
@@ -21,12 +24,34 @@ function ensureConfigDir(): void {
 }
 
 /**
- * Check if a process is running by PID
+ * Check if a process is truly our daemon by checking its command line
+ */
+function isTrulyDaemon(pid: number): boolean {
+  try {
+    const platform = process.platform;
+    let cmd = '';
+
+    if (platform === 'darwin' || platform === 'linux') {
+      cmd = execSync(`ps -p ${pid} -o command=`, { encoding: 'utf-8' });
+    } else if (platform === 'win32') {
+      cmd = execSync(`wmic process where processid=${pid} get commandline`, { encoding: 'utf-8' });
+    }
+
+    // Check if the command line contains our marker or expected path
+    return cmd.includes('daemon') || cmd.includes('AskAnythink');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a process is running by PID and is our daemon
  */
 function isProcessRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
-    return true;
+    // If process exists, double check it's actually our daemon
+    return isTrulyDaemon(pid);
   } catch {
     return false;
   }
@@ -50,14 +75,16 @@ export function readLockFile(): DaemonLock | null {
 /**
  * Write a new lock file
  */
-export function writeLockFile(port: number): void {
+export function writeLockFile(port: number): DaemonLock {
   ensureConfigDir();
   const lock: DaemonLock = {
     pid: process.pid,
     port,
     startedAt: new Date().toISOString(),
+    token: crypto.randomBytes(32).toString('hex'),
   };
   fs.writeFileSync(LOCK_FILE, JSON.stringify(lock, null, 2));
+  return lock;
 }
 
 /**
@@ -94,16 +121,15 @@ export function isDaemonRunning(): number | null {
 
 /**
  * Acquire daemon lock
- * Returns true if lock acquired, false if daemon already running
+ * Returns the lock info if acquired, null if daemon already running
  */
-export function acquireLock(port: number): boolean {
+export function acquireLock(port: number): DaemonLock | null {
   const existingPort = isDaemonRunning();
   if (existingPort !== null) {
-    return false;
+    return null;
   }
 
-  writeLockFile(port);
-  return true;
+  return writeLockFile(port);
 }
 
 export { CONFIG_DIR, LOCK_FILE };

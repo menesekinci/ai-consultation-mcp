@@ -60,10 +60,16 @@ export async function killProcessOnPort(port: number): Promise<boolean> {
 
   try {
     if (platform === 'darwin' || platform === 'linux') {
-      // MacOS/Linux: use kill
-      await execFileAsync('kill', ['-9', String(pid)]);
+      // MacOS/Linux: use kill (SIGTERM first)
+      try {
+        await execFileAsync('kill', [String(pid)]);
+      } catch {
+        // Fallback to -9 if standard kill fails after a small delay
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        await execFileAsync('kill', ['-9', String(pid)]);
+      }
     } else if (platform === 'win32') {
-      // Windows: use taskkill
+      // Windows: use taskkill (/F is equivalent to -9)
       await execFileAsync('taskkill', ['/PID', String(pid), '/F']);
     }
 
@@ -86,7 +92,7 @@ export async function ensurePortAvailable(
   port: number,
   options: { autoKill?: boolean; silent?: boolean } = {}
 ): Promise<{ available: boolean; killed: boolean; pid?: number }> {
-  const { autoKill = true, silent = false } = options;
+  const { autoKill = false, silent = false } = options;
 
   const existingPid = await getProcessOnPort(port);
 
@@ -99,6 +105,9 @@ export async function ensurePortAvailable(
   }
 
   if (!autoKill) {
+    if (!silent) {
+      console.log(`   💡 Tip: Use a different port or terminate the process using this port.`);
+    }
     return { available: false, killed: false, pid: existingPid };
   }
 
