@@ -17,7 +17,7 @@ export const configSchema = z.object({
   defaultModel: z.enum(MODEL_TYPES),
   maxMessages: z.number().int().min(1).max(CONVERSATION_LIMITS.MAX_ALLOWED_MESSAGES),
   requestTimeout: z.number().int().min(30000).max(600000).default(180000), // 30s to 10min, default 3min
-  autoOpenWebUI: z.boolean().default(true), // Auto-open Web UI when agent uses tools
+  autoOpenWebUI: z.boolean().default(false), // Auto-open Web UI when agent uses tools
   providers: z.object({
     deepseek: providerConfigSchema,
     openai: providerConfigSchema,

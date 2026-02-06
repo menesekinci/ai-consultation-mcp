@@ -4,12 +4,23 @@ import { initDatabase, closeDatabase } from './database.js';
 import { createDaemonServer, connectedClients } from './server.js';
 import { acquireLock, removeLockFile, isDaemonRunning, runMigration } from './utils/index.js';
 import { ensurePortAvailable } from '../utils/portKiller.js';
+import type { Server } from 'socket.io';
+import { fileURLToPath } from 'url';
 
 const DEFAULT_PORT = 3456;
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 let idleTimer: NodeJS.Timeout | null = null;
 let server: ReturnType<typeof createDaemonServer> | null = null;
+
+export function registerIdleTimerHooks(io: Server, onActivity: () => void): void {
+  io.on('connection', (socket) => {
+    onActivity();
+    socket.on('disconnect', () => {
+      onActivity();
+    });
+  });
+}
 
 /**
  * Reset idle timer
@@ -137,13 +148,7 @@ async function main(): Promise<void> {
   }
 
   // Set up client tracking for idle timeout
-  server.io.on('connection', () => {
-    resetIdleTimer();
-  });
-
-  server.io.on('disconnect', () => {
-    resetIdleTimer();
-  });
+  registerIdleTimerHooks(server.io, resetIdleTimer);
 
   // Start idle timer
   resetIdleTimer();
@@ -166,8 +171,18 @@ process.on('unhandledRejection', (reason) => {
   shutdown();
 });
 
-// Start daemon
-main().catch((error) => {
-  console.error('[Daemon] Failed to start:', error);
-  process.exit(1);
-});
+const isDirectRun = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return fileURLToPath(import.meta.url) === process.argv[1];
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error('[Daemon] Failed to start:', error);
+    process.exit(1);
+  });
+}

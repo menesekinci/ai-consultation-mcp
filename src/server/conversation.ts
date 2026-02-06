@@ -215,6 +215,56 @@ export class ConversationManager {
   }
 
   /**
+   * Delete an archived conversation by ID from history file
+   */
+  static deleteArchivedById(conversationId: string): boolean {
+    try {
+      if (!fs.existsSync(HISTORY_FILE)) {
+        return false;
+      }
+
+      const data = fs.readFileSync(HISTORY_FILE, 'utf-8');
+      const history: ArchivedConversation[] = JSON.parse(data);
+      const nextHistory = history.filter((conv) => conv.id !== conversationId);
+
+      if (nextHistory.length === history.length) {
+        return false;
+      }
+
+      fs.writeFileSync(HISTORY_FILE, JSON.stringify(nextHistory, null, 2), 'utf-8');
+      return true;
+    } catch (error) {
+      console.error('Failed to delete archived conversation:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete all archived conversations from history file
+   */
+  static deleteAllArchived(): number {
+    try {
+      if (!fs.existsSync(HISTORY_FILE)) {
+        return 0;
+      }
+
+      const data = fs.readFileSync(HISTORY_FILE, 'utf-8');
+      const history: ArchivedConversation[] = JSON.parse(data);
+      const deleted = history.length;
+
+      if (deleted === 0) {
+        return 0;
+      }
+
+      fs.writeFileSync(HISTORY_FILE, JSON.stringify([], null, 2), 'utf-8');
+      return deleted;
+    } catch (error) {
+      console.error('Failed to delete all archived conversations:', error);
+      return 0;
+    }
+  }
+
+  /**
    * Archive a conversation to history file
    */
   private archiveConversation(conversation: Conversation, reason: ArchivedConversation['endReason']): void {

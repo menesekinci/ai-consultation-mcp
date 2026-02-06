@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { ConversationManager, conversationManager, type Conversation, type ArchivedConversation } from '../../server/conversation.js';
-import type { Message } from '../../types/index.js';
+import { buildChatHistoryResponse } from '../shared/chat.js';
 
 const router = Router();
 
@@ -36,52 +36,52 @@ router.get('/history', (_req: Request, res: Response) => {
     });
     const archivedConversations = Array.from(archivedMap.values());
 
-    // Format active conversations for UI display
-    const active = activeConversations.map((conv: Conversation) => ({
-      id: conv.id,
-      model: conv.model,
-      messageCount: conv.messages.length,
-      messages: conv.messages.map((msg: Message, idx: number) => ({
-        id: `${conv.id}-${idx}`,
-        role: msg.role,
-        content: msg.content,
-      })),
-      createdAt: conv.createdAt.toISOString(),
-      lastActivityAt: conv.lastActivityAt.toISOString(),
-      status: 'active' as const,
-    }));
-
-    // Format archived conversations for UI display
-    const archived = archivedConversations.map((conv: ArchivedConversation) => ({
-      id: conv.id,
-      model: conv.model,
-      messageCount: conv.messages.length,
-      messages: conv.messages.map((msg: Message, idx: number) => ({
-        id: `${conv.id}-${idx}`,
-        role: msg.role,
-        content: msg.content,
-      })),
-      createdAt: conv.createdAt,
-      lastActivityAt: conv.lastActivityAt,
-      endedAt: conv.endedAt,
-      endReason: conv.endReason,
-      status: 'archived' as const,
-    }));
-
-    // Combine: active first, then archived (already sorted by newest first)
-    const allConversations = [...active, ...archived];
-
-    res.json({
-      count: allConversations.length,
-      activeCount: active.length,
-      archivedCount: archived.length,
-      active,
-      archived,
-      conversations: allConversations,
-    });
+    res.json(
+      buildChatHistoryResponse(
+        activeConversations as Conversation[],
+        archivedConversations as ArchivedConversation[]
+      )
+    );
   } catch (error) {
     res.status(500).json({
       error: 'Failed to fetch conversation history',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/chat/archived/all
+ * Delete all archived conversations from file history
+ */
+router.delete('/archived/all', (_req: Request, res: Response) => {
+  try {
+    const deleted = ConversationManager.deleteAllArchived();
+    res.json({ success: true, deleted });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to delete archived conversations',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/chat/:id
+ * Delete a single archived conversation from file history
+ */
+router.delete('/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = ConversationManager.deleteArchivedById(String(id));
+    if (!deleted) {
+      res.status(404).json({ error: 'Conversation not found or already removed' });
+      return;
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to delete conversation',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }

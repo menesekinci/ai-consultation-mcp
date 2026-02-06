@@ -190,7 +190,7 @@ export async function openWebUI(socket?: Socket): Promise<void> {
           if (response) {
             resolve(response);
           } else {
-            resolve({ autoOpenWebUI: true }); // Default to true if config fetch fails
+            resolve({ autoOpenWebUI: false }); // Default to disabled if config fetch fails
           }
         });
       });
@@ -199,12 +199,13 @@ export async function openWebUI(socket?: Socket): Promise<void> {
         return; // User disabled auto-open
       }
     } catch {
-      // If config check fails, proceed with opening (default behavior)
+      // If config check fails, do not auto-open browser
+      return;
     }
   }
 
-  const port = await ensureDaemonRunning();
-  const url = `http://127.0.0.1:${port}`;
+  const lock = await ensureDaemonRunning();
+  const url = buildWebUIUrl(lock.port);
 
   browserOpened = true;
 
@@ -222,4 +223,8 @@ export async function openWebUI(socket?: Socket): Promise<void> {
   } catch (error) {
     console.error('[Proxy] Failed to open browser:', error instanceof Error ? error.message : 'Unknown error');
   }
+}
+
+export function buildWebUIUrl(port: number): string {
+  return `http://127.0.0.1:${port}`;
 }

@@ -5,17 +5,15 @@
 
 An MCP (Model Context Protocol) server that enables AI agents to get a **second opinion** from other AI models, enriching their perspectives during work.
 
-> **Purpose**: When AI agents work on complex tasks, having a single perspective can lead to blind spots or suboptimal solutions. This MCP server allows agents like Claude Code to consult with DeepSeek Reasoner, GPT-4o, Gemini, or Claude for alternative viewpoints, validation, or different problem-solving strategies.
+> **Purpose**: When AI agents work on complex tasks, having a single perspective can lead to blind spots or suboptimal solutions. This MCP server allows agents like Claude Code to consult with DeepSeek and OpenAI models for alternative viewpoints, validation, or different problem-solving strategies.
 
 ## Features
 
 - **Central Daemon Architecture**: SQLite-based central daemon with WebSocket real-time sync across all connected clients
 - **Multi-Tool Auto-Install**: Automatically detects and configures MCP for Claude Code, Cursor, Windsurf, Cline, Continue, Zed, Roo Code, OpenCode, and VSCode Copilot
 - **Multi-Provider Support**: 
-  - **OpenAI**: GPT-4o, GPT-4o-mini, o1, o3-mini
+  - **OpenAI**: gpt-5.2, gpt-5.2-pro
   - **DeepSeek**: deepseek-chat, deepseek-reasoner
-  - **Google**: Gemini 2.0 Flash, Gemini 2.0 Pro
-  - **Anthropic**: Claude Sonnet 4, Claude Haiku
 - **Specialized Consultation Modes**: Debug, Code Analysis, Architecture Review, Plan Validation, Concept Explanation
 - **Conversation Management**: Continue multi-turn conversations with context (max 5 messages to prevent infinite loops)
 - **Real-time Web UI**: Configure providers, API keys, and view conversation history with live updates via WebSocket
@@ -139,6 +137,8 @@ The MCP server uses a **central daemon architecture** for robust multi-client su
 - ✅ Automatic daemon lifecycle management
 - ✅ Persistent conversation history
 
+> **Default runtime**: daemon/proxy architecture is the default and recommended mode. `--legacy` is maintained for compatibility and is deprecated.
+
 ## Configuration
 
 ### Setting Up API Keys
@@ -158,25 +158,17 @@ This opens a web UI where you can:
 
 | Provider | Models | API Key |
 |----------|--------|---------|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | [Get API Key](https://platform.openai.com/) |
+| **OpenAI** | `gpt-5.2`, `gpt-5.2-pro` | [Get API Key](https://platform.openai.com/) |
 | **DeepSeek** | `deepseek-reasoner` (default), `deepseek-chat` | [Get API Key](https://platform.deepseek.com/) |
-| **Google** | `gemini-2.0-flash`, `gemini-2.0-pro` | [Get API Key](https://ai.google.dev/) |
-| **Anthropic** | `claude-sonnet-4`, `claude-haiku` | [Get API Key](https://console.anthropic.com/) |
 
 ### Model Features
 
 | Model | Provider | Context | Max Output | Features |
 |-------|----------|---------|------------|----------|
-| gpt-4o | OpenAI | 128K | 16K | Vision, function calling |
-| gpt-4o-mini | OpenAI | 128K | 16K | Fast, cost-effective |
-| o1 | OpenAI | 200K | 100K | Chain-of-thought reasoning |
-| o3-mini | OpenAI | 200K | 100K | Reasoning, affordable |
+| gpt-5.2 | OpenAI | 400K | 400K | Reasoning, flagship quality |
+| gpt-5.2-pro | OpenAI | 400K | 400K | More compute, higher quality |
 | deepseek-chat | DeepSeek | 128K | 8K | Fast, very affordable |
 | deepseek-reasoner | DeepSeek | 64K | 64K | Chain-of-thought |
-| gemini-2.0-flash | Google | 1M | 8K | Very fast |
-| gemini-2.0-pro | Google | 2M | 8K | Best quality |
-| claude-sonnet-4 | Anthropic | 200K | 8K | Balanced |
-| claude-haiku | Anthropic | 200K | 4K | Fastest |
 
 ## Usage
 

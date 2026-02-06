@@ -990,10 +990,39 @@
               When an agent faces a complex decision, architectural choice, or debugging challenge,
               it can request a <span class="text-accent-400 font-medium">second opinion</span> from a different model.
             </p>
-            <p class="text-neutral-500 text-sm leading-relaxed">
-              Think of it as pair programming between AI models - each bringing different training,
-              reasoning patterns, and perspectives to the problem.
+            <p class="text-neutral-500 text-sm leading-relaxed mb-3">
+              Default runtime architecture is <span class="text-neutral-300 font-medium">Daemon + Proxy</span>,
+              which enables shared state, real-time sync, and safer multi-client behavior.
             </p>
+            <p class="text-neutral-500 text-sm leading-relaxed">
+              Legacy mode is still available for compatibility but is deprecated.
+            </p>
+          </div>
+
+          <!-- Supported Providers -->
+          <div class="glass-card rounded-2xl p-6 mb-6">
+            <h3 class="text-lg font-semibold text-neutral-100 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a4 4 0 00-5.656 0L12 17.2l-1.772-1.772a4 4 0 10-5.656 5.656L12 28.8l7.428-7.716a4 4 0 000-5.656z"/>
+              </svg>
+              Supported Providers
+            </h3>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <div class="flex items-center gap-3">
+                  <span class="text-neutral-200 font-medium text-sm">OpenAI</span>
+                  <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">gpt-5.2 / gpt-5.2-pro</code>
+                </div>
+                <span class="text-xs text-neutral-500">Enabled in current stable scope</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <div class="flex items-center gap-3">
+                  <span class="text-neutral-200 font-medium text-sm">DeepSeek</span>
+                  <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">deepseek-chat / deepseek-reasoner</code>
+                </div>
+                <span class="text-xs text-neutral-500">Enabled in current stable scope</span>
+              </div>
+            </div>
           </div>
 
           <!-- Recommendations -->
@@ -1028,6 +1057,14 @@
                   </svg>
                 </div>
                 <p class="text-neutral-400 text-sm"><span class="text-neutral-200 font-medium">Code Review:</span> Validate implementation choices before committing</p>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-emerald-500/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </div>
+                <p class="text-neutral-400 text-sm"><span class="text-neutral-200 font-medium">Non-intrusive by default:</span> Auto-open Web UI is disabled by default. You can enable it from Configuration when needed.</p>
               </div>
             </div>
           </div>
@@ -1071,6 +1108,45 @@
                 <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">end_conversation</code>
                 <span class="text-xs text-neutral-500">Archive conversation</span>
               </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <div class="flex items-center gap-3">
+                  <code class="bg-accent-500/20 text-accent-300 px-2 py-1 rounded text-xs font-mono">rag_search</code>
+                  <span class="text-xs text-emerald-400">RAG</span>
+                </div>
+                <span class="text-xs text-neutral-500">Semantic document search</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_upload_files</code>
+                <span class="text-xs text-neutral-500">Upload local files to index</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_list_docs</code>
+                <span class="text-xs text-neutral-500">List indexed documents</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_list_folders</code>
+                <span class="text-xs text-neutral-500">List folder namespaces</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_update_doc_folder</code>
+                <span class="text-xs text-neutral-500">Move document to folder</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_bulk_update_folders</code>
+                <span class="text-xs text-neutral-500">Bulk folder updates</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_list_memories</code>
+                <span class="text-xs text-neutral-500">List structured memories</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_add_memory</code>
+                <span class="text-xs text-neutral-500">Add memory note</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-surface-50/50 rounded-xl border border-surface-200/30">
+                <code class="bg-surface-200 text-neutral-300 px-2 py-1 rounded text-xs font-mono">rag_get_doc_chunks</code>
+                <span class="text-xs text-neutral-500">Inspect document chunks</span>
+              </div>
             </div>
           </div>
         </section>
@@ -1081,7 +1157,7 @@
         <div class="flex items-center justify-center space-x-2 text-neutral-600">
           <span class="font-mono text-sm">Agent Consultation MCP</span>
           <span class="text-accent-500">•</span>
-          <span class="font-mono text-sm">v2.1.2</span>
+          <span class="font-mono text-sm">v2.1.3</span>
         </div>
         <p class="text-neutral-600 text-sm mt-2">Configuration changes are saved automatically</p>
       </footer>
@@ -1308,7 +1384,7 @@
           defaultModel: '',
           maxMessages: 5,
           requestTimeout: 180000,
-          autoOpenWebUI: true,
+          autoOpenWebUI: false,
           availableModels: [],
         },
         toasts: [],
@@ -1348,6 +1424,10 @@
         socketDisabled: false,
         // Flag to prevent duplicate toasts when saving config
         _savingConfig: false,
+        _configSaveInFlight: false,
+        _configSaveQueued: false,
+        _lastSavedConfigHash: '',
+        _recentToastAt: {},
 
         // Computed: total pages
         get totalPages() {
@@ -1391,51 +1471,91 @@
         },
 
         // Delete a single conversation
-        deleteConversation(id) {
+        async deleteConversation(id) {
           if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
             return;
           }
 
-          if (this.socket?.connected) {
-            this.socket.emit('conversation:delete', id, (success) => {
-              if (success) {
-                this.showToast('Conversation deleted', 'success');
-                // Remove from local list
-                this.chatHistory = this.chatHistory.filter(c => c.id !== id);
-                this.historyStats.archived = Math.max(0, this.historyStats.archived - 1);
-              } else {
-                this.showToast('Failed to delete conversation', 'error');
-              }
-            });
+          try {
+            const success = await this.deleteConversationRemote(id);
+            if (!success) {
+              this.showToast('Failed to delete conversation', 'error');
+              return;
+            }
+            this.showToast('Conversation deleted', 'success');
+            this.chatHistory = this.chatHistory.filter(c => c.id !== id);
+            this.historyStats.archived = Math.max(0, this.historyStats.archived - 1);
+          } catch (error) {
+            this.showToast('Failed to delete conversation: ' + error.message, 'error');
           }
         },
 
         // Delete all archived conversations
-        deleteAllArchived() {
+        async deleteAllArchived() {
           const archivedCount = this.historyStats.archived;
           if (!confirm(`Are you sure you want to delete all ${archivedCount} archived conversations? This cannot be undone.`)) {
             return;
           }
 
-          if (this.socket?.connected) {
+          try {
             const archivedConvs = this.chatHistory.filter(c => c.status === 'archived');
-            let deleted = 0;
-
-            archivedConvs.forEach(conv => {
-              this.socket.emit('conversation:delete', conv.id, (success) => {
-                if (success) {
-                  deleted++;
-                  this.chatHistory = this.chatHistory.filter(c => c.id !== conv.id);
-                }
-
-                // Show result after all deletions attempted
-                if (deleted === archivedConvs.length) {
-                  this.showToast(`Deleted ${deleted} archived conversations`, 'success');
-                  this.historyStats.archived = 0;
-                }
-              });
-            });
+            const result = await this.deleteArchivedRemote(archivedConvs.map(c => c.id));
+            if (result.deleted > 0) {
+              this.chatHistory = this.chatHistory.filter(c => c.status !== 'archived');
+              this.historyStats.archived = 0;
+              this.showToast(`Deleted ${result.deleted} archived conversations`, 'success');
+            } else {
+              this.showToast('No archived conversations were deleted', 'info');
+            }
+          } catch (error) {
+            this.showToast('Failed to delete archived conversations: ' + error.message, 'error');
           }
+        },
+
+        deleteConversationSocket(id) {
+          return new Promise((resolve) => {
+            this.socket.emit('conversation:delete', id, (success) => {
+              resolve(Boolean(success));
+            });
+          });
+        },
+
+        async deleteConversationHttp(id) {
+          const res = await fetch(`/api/chat/${id}`, { method: 'DELETE' });
+          if (res.ok) return true;
+          if (res.status === 404) return false;
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || data.error || 'Delete request failed');
+        },
+
+        async deleteConversationRemote(id) {
+          if (this.socket?.connected) {
+            return await this.deleteConversationSocket(id);
+          }
+          return await this.deleteConversationHttp(id);
+        },
+
+        async deleteArchivedRemote(ids) {
+          // Prefer socket path when connected for realtime sync
+          if (this.socket?.connected) {
+            const results = await Promise.all(ids.map((id) => this.deleteConversationSocket(id)));
+            return { deleted: results.filter(Boolean).length };
+          }
+
+          // HTTP bulk endpoint fallback
+          const bulkRes = await fetch('/api/chat/archived/all', { method: 'DELETE' });
+          if (bulkRes.ok) {
+            const data = await bulkRes.json();
+            return { deleted: Number(data.deleted) || 0 };
+          }
+
+          // Final fallback: per-item HTTP deletes
+          let deleted = 0;
+          for (const id of ids) {
+            const ok = await this.deleteConversationHttp(id);
+            if (ok) deleted++;
+          }
+          return { deleted };
         },
 
         handleFileSelect(event) {
@@ -1699,8 +1819,14 @@
             // Ensure autoOpenWebUI has a default value if not present
             this.config = {
               ...loadedConfig,
-              autoOpenWebUI: loadedConfig.autoOpenWebUI !== undefined ? loadedConfig.autoOpenWebUI : true,
+              autoOpenWebUI: loadedConfig.autoOpenWebUI !== undefined ? loadedConfig.autoOpenWebUI : false,
             };
+            this._lastSavedConfigHash = JSON.stringify({
+              defaultModel: this.config.defaultModel,
+              maxMessages: parseInt(this.config.maxMessages, 10),
+              requestTimeout: parseInt(this.config.requestTimeout, 10),
+              autoOpenWebUI: this.config.autoOpenWebUI,
+            });
             this.loadError = null;
           } catch (error) {
             console.error('loadData error:', error);
@@ -1716,17 +1842,32 @@
         },
 
         async saveConfig() {
+          const payload = {
+            defaultModel: this.config.defaultModel,
+            maxMessages: parseInt(this.config.maxMessages, 10),
+            requestTimeout: parseInt(this.config.requestTimeout, 10),
+            autoOpenWebUI: this.config.autoOpenWebUI,
+          };
+          const payloadHash = JSON.stringify(payload);
+
+          // No-op for unchanged settings
+          if (payloadHash === this._lastSavedConfigHash) {
+            return;
+          }
+
+          // Collapse rapid changes into at most one queued request
+          if (this._configSaveInFlight) {
+            this._configSaveQueued = true;
+            return;
+          }
+
           this._savingConfig = true;
+          this._configSaveInFlight = true;
           try {
             const res = await fetch('/api/config', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                defaultModel: this.config.defaultModel,
-                maxMessages: parseInt(this.config.maxMessages, 10),
-                requestTimeout: parseInt(this.config.requestTimeout, 10),
-                autoOpenWebUI: this.config.autoOpenWebUI,
-              }),
+              body: JSON.stringify(payload),
             });
 
             if (!res.ok) {
@@ -1734,12 +1875,18 @@
               throw new Error(data.message || 'Failed to save');
             }
 
+            this._lastSavedConfigHash = payloadHash;
             this.showToast('Settings saved', 'success');
           } catch (error) {
             this.showToast('Failed to save settings: ' + error.message, 'error');
           } finally {
             // Reset flag after a short delay to allow socket event to be ignored
             setTimeout(() => { this._savingConfig = false; }, 500);
+            this._configSaveInFlight = false;
+            if (this._configSaveQueued) {
+              this._configSaveQueued = false;
+              setTimeout(() => this.saveConfig(), 0);
+            }
           }
         },
 
@@ -1847,8 +1994,18 @@
           }
         },
 
-        showToast(message, type = 'info') {
-          const id = Date.now();
+        showToast(message, type = 'info', options = {}) {
+          const dedupe = options.dedupe !== false;
+          const dedupeWindowMs = options.dedupeWindowMs ?? 1200;
+          const dedupeKey = `${type}:${message}`;
+          const now = Date.now();
+          const lastShownAt = this._recentToastAt[dedupeKey] || 0;
+          if (dedupe && now - lastShownAt < dedupeWindowMs) {
+            return;
+          }
+          this._recentToastAt[dedupeKey] = now;
+
+          const id = Date.now() + Math.floor(Math.random() * 1000);
           const toast = { id, message, type, show: true };
           this.toasts.push(toast);
 

@@ -15,7 +15,7 @@ export const DEFAULT_CONFIG: Config = {
   defaultModel: 'deepseek-reasoner',
   maxMessages: CONVERSATION_LIMITS.DEFAULT_MAX_MESSAGES,
   requestTimeout: 180000, // 3 minutes default
-  autoOpenWebUI: true, // Auto-open Web UI when agent uses tools
+  autoOpenWebUI: false, // Auto-open Web UI when agent uses tools
   providers: {
     deepseek: {
       enabled: false,

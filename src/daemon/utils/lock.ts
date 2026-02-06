@@ -83,7 +83,12 @@ export function writeLockFile(port: number): DaemonLock {
     startedAt: new Date().toISOString(),
     token: crypto.randomBytes(32).toString('hex'),
   };
-  fs.writeFileSync(LOCK_FILE, JSON.stringify(lock, null, 2));
+  fs.writeFileSync(LOCK_FILE, JSON.stringify(lock, null, 2), {
+    mode: 0o600,
+  });
+  if (process.platform !== 'win32') {
+    fs.chmodSync(LOCK_FILE, 0o600);
+  }
   return lock;
 }
 

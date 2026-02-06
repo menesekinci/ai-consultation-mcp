@@ -1,17 +1,13 @@
 {
-  "defaultModel": "gpt-4o",
+  "defaultModel": "deepseek-reasoner",
   "maxMessages": 5,
+  "requestTimeout": 180000,
+  "autoOpenWebUI": false,
   "providers": {
     "openai": {
       "enabled": false
     },
     "deepseek": {
-      "enabled": false
-    },
-    "google": {
-      "enabled": false
-    },
-    "anthropic": {
       "enabled": false
     }
   }

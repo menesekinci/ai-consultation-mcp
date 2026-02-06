@@ -1,41 +1,16 @@
 import { Router } from 'express';
 import { getConfigManager } from '../../config/index.js';
-import { MODEL_TO_PROVIDER, MODEL_CONFIG } from '../../types/index.js';
-import type { ProviderType, ModelType } from '../../types/index.js';
+import type { ProviderType } from '../../types/index.js';
 import { logger } from '../../utils/index.js';
+import {
+  isProviderType,
+  PROVIDER_INFO,
+  listProviderDetails,
+  getProviderDetails,
+  maskKey,
+} from '../shared/providers.js';
 
 const router = Router();
-
-/**
- * Provider display information
- */
-const PROVIDER_INFO: Record<ProviderType, { name: string; description: string }> = {
-  deepseek: {
-    name: 'DeepSeek',
-    description: 'DeepSeek Chat and Reasoner models',
-  },
-  openai: {
-    name: 'ChatGPT',
-    description: 'GPT-5.2 and GPT-5.2 Pro models',
-  },
-};
-
-/**
- * Get models for a specific provider
- */
-function getModelsForProvider(providerId: ProviderType): ModelType[] {
-  return Object.entries(MODEL_TO_PROVIDER)
-    .filter(([_, provider]) => provider === providerId)
-    .map(([model]) => model as ModelType);
-}
-
-/**
- * Mask API key for display (fixed length + last 4 characters)
- */
-function maskKey(key: string): string {
-  if (key.length <= 4) return '••••••••';
-  return '••••••••' + key.slice(-4);
-}
 
 /**
  * GET /api/providers - List all providers with status
@@ -43,27 +18,7 @@ function maskKey(key: string): string {
 router.get('/', (_req, res) => {
   try {
     const config = getConfigManager().getConfig();
-
-    const providers = (Object.keys(PROVIDER_INFO) as ProviderType[]).map((id) => {
-      const providerConfig = config.providers[id];
-      const models = getModelsForProvider(id);
-
-      return {
-        id,
-        name: PROVIDER_INFO[id].name,
-        description: PROVIDER_INFO[id].description,
-        enabled: providerConfig?.enabled ?? false,
-        hasKey: !!providerConfig?.apiKey,
-        maskedKey: providerConfig?.apiKey ? maskKey(providerConfig.apiKey) : null,
-        models: models.map((m) => ({
-          id: m,
-          name: m,
-          isReasoning: MODEL_CONFIG[m]?.isReasoning ?? false,
-        })),
-      };
-    });
-
-    res.json(providers);
+    res.json(listProviderDetails(config));
   } catch (error) {
     res.status(500).json({
       error: 'Failed to list providers',
@@ -79,28 +34,13 @@ router.get('/:id', (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!PROVIDER_INFO[id as ProviderType]) {
+    if (!isProviderType(id)) {
       res.status(404).json({ error: 'Provider not found' });
       return;
     }
 
     const config = getConfigManager().getConfig();
-    const providerConfig = config.providers[id as ProviderType];
-    const models = getModelsForProvider(id as ProviderType);
-
-    res.json({
-      id,
-      name: PROVIDER_INFO[id as ProviderType].name,
-      description: PROVIDER_INFO[id as ProviderType].description,
-      enabled: providerConfig?.enabled ?? false,
-      hasKey: !!providerConfig?.apiKey,
-      maskedKey: providerConfig?.apiKey ? maskKey(providerConfig.apiKey) : null,
-      models: models.map((m) => ({
-        id: m,
-        name: m,
-        isReasoning: MODEL_CONFIG[m]?.isReasoning ?? false,
-      })),
-    });
+    res.json(getProviderDetails(config, id));
   } catch (error) {
     res.status(500).json({
       error: 'Failed to get provider',
@@ -117,7 +57,7 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { apiKey } = req.body;
 
-    if (!PROVIDER_INFO[id as ProviderType]) {
+    if (!isProviderType(id)) {
       res.status(404).json({ error: 'Provider not found' });
       return;
     }
@@ -130,7 +70,7 @@ router.put('/:id', async (req, res) => {
       return;
     }
 
-    await getConfigManager().setProviderKey(id as ProviderType, apiKey.trim());
+    await getConfigManager().setProviderKey(id, apiKey.trim());
 
     logger.info(`API key updated for provider: ${id}`);
 
@@ -154,12 +94,12 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!PROVIDER_INFO[id as ProviderType]) {
+    if (!isProviderType(id)) {
       res.status(404).json({ error: 'Provider not found' });
       return;
     }
 
-    await getConfigManager().removeProviderKey(id as ProviderType);
+    await getConfigManager().removeProviderKey(id);
 
     logger.info(`API key removed for provider: ${id}`);
 
@@ -184,14 +124,14 @@ router.post('/:id/test', async (req, res) => {
     const { id } = req.params;
     const { apiKey } = req.body;
 
-    if (!PROVIDER_INFO[id as ProviderType]) {
+    if (!isProviderType(id)) {
       res.status(404).json({ error: 'Provider not found' });
       return;
     }
 
     // Use provided apiKey or stored key
     const config = getConfigManager().getConfig();
-    const keyToTest = apiKey || config.providers[id as ProviderType]?.apiKey;
+    const keyToTest = apiKey || config.providers[id]?.apiKey;
 
     if (!keyToTest) {
       res.json({
@@ -202,7 +142,7 @@ router.post('/:id/test', async (req, res) => {
     }
 
     // Test the API key with a minimal request
-    const testResult = await testProviderApiKey(id as ProviderType, keyToTest);
+    const testResult = await testProviderApiKey(id, keyToTest);
 
     res.json(testResult);
   } catch (error) {

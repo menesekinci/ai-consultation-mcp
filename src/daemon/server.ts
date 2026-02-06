@@ -10,31 +10,21 @@ import {
   registerProviderHandlers,
   getActiveConversations,
   getArchivedConversations,
+  deleteConversation,
   getConfig,
   updateConfig,
   getProviderClient,
 } from './handlers/index.js';
 import { getDatabase, conversationQueries, type DbConversation } from './database.js';
-import { MODEL_TO_PROVIDER, MODEL_CONFIG, MODEL_TYPES } from '../types/index.js';
-import type { ProviderType, ModelType } from '../types/index.js';
-import { CONVERSATION_LIMITS } from '../config/defaults.js';
-
-// Provider display information
-const PROVIDER_INFO: Record<ProviderType, { name: string; description: string }> = {
-  deepseek: { name: 'DeepSeek', description: 'DeepSeek Chat and Reasoner models' },
-  openai: { name: 'ChatGPT', description: 'GPT-5.2 and GPT-5.2 Pro models' },
-};
-
-function getModelsForProvider(providerId: ProviderType): ModelType[] {
-  return Object.entries(MODEL_TO_PROVIDER)
-    .filter(([_, provider]) => provider === providerId)
-    .map(([model]) => model as ModelType);
-}
-
-function maskKey(key: string): string {
-  if (key.length <= 4) return '••••••••';
-  return '••••••••' + key.slice(-4);
-}
+import { toPublicConfig, parseConfigPatch } from '../api/shared/config.js';
+import {
+  isProviderType,
+  getModelsForProvider,
+  getProviderDetails,
+  listProviderDetails,
+  maskKey,
+} from '../api/shared/providers.js';
+import { buildChatHistoryResponse } from '../api/shared/chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -112,20 +102,7 @@ export function createDaemonServer(port: number, authToken?: string): {
 
   app.get('/api/config', (_req, res) => {
     try {
-      const config = getConfig();
-      res.json({
-        defaultModel: config.defaultModel,
-        maxMessages: config.maxMessages,
-        requestTimeout: config.requestTimeout,
-        autoOpenWebUI: config.autoOpenWebUI,
-        availableModels: MODEL_TYPES,
-        providers: Object.fromEntries(
-          Object.entries(config.providers).map(([id, cfg]) => [
-            id,
-            { enabled: cfg.enabled, hasKey: !!cfg.apiKey },
-          ])
-        ),
-      });
+      res.json(toPublicConfig(getConfig()));
     } catch (error) {
       res.status(500).json({ error: 'Failed to get config' });
     }
@@ -133,44 +110,15 @@ export function createDaemonServer(port: number, authToken?: string): {
 
   app.patch('/api/config', (req, res) => {
     try {
-      const { defaultModel, maxMessages, requestTimeout, autoOpenWebUI } = req.body;
-      const updates: { defaultModel?: ModelType; maxMessages?: number; requestTimeout?: number; autoOpenWebUI?: boolean } = {};
-
-      if (defaultModel !== undefined) {
-        if (!MODEL_TYPES.includes(defaultModel)) {
-          res.status(400).json({ error: 'Invalid model' });
-          return;
-        }
-        updates.defaultModel = defaultModel;
-      }
-      if (maxMessages !== undefined) {
-        const num = parseInt(maxMessages, 10);
-        if (isNaN(num) || num < 1 || num > CONVERSATION_LIMITS.MAX_ALLOWED_MESSAGES) {
-          res.status(400).json({ error: 'Invalid maxMessages' });
-          return;
-        }
-        updates.maxMessages = num;
-      }
-      if (requestTimeout !== undefined) {
-        const num = parseInt(requestTimeout, 10);
-        if (isNaN(num) || num < 30000 || num > 600000) {
-          res.status(400).json({ error: 'Invalid requestTimeout' });
-          return;
-        }
-        updates.requestTimeout = num;
-      }
-      if (autoOpenWebUI !== undefined) {
-        updates.autoOpenWebUI = Boolean(autoOpenWebUI);
-      }
-
-      if (Object.keys(updates).length === 0) {
-        res.status(400).json({ error: 'No updates provided' });
+      const parsed = parseConfigPatch(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid configuration update', message: parsed.error });
         return;
       }
 
-      updateConfig(updates);
+      updateConfig(parsed.data);
       io.emit('config:updated', getConfig());
-      res.json({ success: true, updated: updates });
+      res.json({ success: true, updated: parsed.data });
     } catch (error) {
       res.status(500).json({ error: 'Failed to update config' });
     }
@@ -180,40 +128,66 @@ export function createDaemonServer(port: number, authToken?: string): {
     try {
       const active = getActiveConversations();
       const archived = getArchivedConversations();
-
-      res.json({
-        activeCount: active.length,
-        archivedCount: archived.length,
-        active,
-        archived,
-      });
+      res.json(
+        buildChatHistoryResponse(
+          active.map((conv) => ({
+            id: conv.id,
+            model: conv.model,
+            messages: conv.messages,
+            createdAt: conv.createdAt,
+            lastActivityAt: conv.updatedAt,
+          })),
+          archived.map((conv) => ({
+            id: conv.id,
+            model: conv.model,
+            messages: conv.messages,
+            createdAt: conv.createdAt,
+            lastActivityAt: conv.updatedAt,
+            endedAt: conv.endedAt,
+            endReason: conv.endReason,
+          }))
+        )
+      );
     } catch (error) {
       res.status(500).json({ error: 'Failed to get history' });
+    }
+  });
+
+  app.delete('/api/chat/:id', (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const success = deleteConversation(id);
+      if (!success) {
+        res.status(404).json({ error: 'Conversation not found or already removed' });
+        return;
+      }
+      io.emit('conversation:deleted', { conversationId: id });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete conversation' });
+    }
+  });
+
+  app.delete('/api/chat/archived/all', (_req, res) => {
+    try {
+      const archived = getArchivedConversations();
+      let deleted = 0;
+      for (const conv of archived) {
+        if (deleteConversation(conv.id)) {
+          deleted += 1;
+          io.emit('conversation:deleted', { conversationId: conv.id });
+        }
+      }
+      res.json({ success: true, deleted });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete archived conversations' });
     }
   });
 
   // Providers endpoints
   app.get('/api/providers', (_req, res) => {
     try {
-      const config = getConfig();
-      const providers = (Object.keys(PROVIDER_INFO) as ProviderType[]).map((id) => {
-        const providerConfig = config.providers[id];
-        const models = getModelsForProvider(id);
-        return {
-          id,
-          name: PROVIDER_INFO[id].name,
-          description: PROVIDER_INFO[id].description,
-          enabled: providerConfig?.enabled ?? false,
-          hasKey: !!providerConfig?.apiKey,
-          maskedKey: providerConfig?.apiKey ? maskKey(providerConfig.apiKey) : null,
-          models: models.map((m) => ({
-            id: m,
-            name: m,
-            isReasoning: MODEL_CONFIG[m]?.isReasoning ?? false,
-          })),
-        };
-      });
-      res.json(providers);
+      res.json(listProviderDetails(getConfig()));
     } catch (error) {
       res.status(500).json({ error: 'Failed to list providers' });
     }
@@ -222,26 +196,11 @@ export function createDaemonServer(port: number, authToken?: string): {
   app.get('/api/providers/:id', (req, res) => {
     try {
       const { id } = req.params;
-      if (!PROVIDER_INFO[id as ProviderType]) {
+      if (!isProviderType(id)) {
         res.status(404).json({ error: 'Provider not found' });
         return;
       }
-      const config = getConfig();
-      const providerConfig = config.providers[id as ProviderType];
-      const models = getModelsForProvider(id as ProviderType);
-      res.json({
-        id,
-        name: PROVIDER_INFO[id as ProviderType].name,
-        description: PROVIDER_INFO[id as ProviderType].description,
-        enabled: providerConfig?.enabled ?? false,
-        hasKey: !!providerConfig?.apiKey,
-        maskedKey: providerConfig?.apiKey ? maskKey(providerConfig.apiKey) : null,
-        models: models.map((m) => ({
-          id: m,
-          name: m,
-          isReasoning: MODEL_CONFIG[m]?.isReasoning ?? false,
-        })),
-      });
+      res.json(getProviderDetails(getConfig(), id));
     } catch (error) {
       res.status(500).json({ error: 'Failed to get provider' });
     }
@@ -251,7 +210,7 @@ export function createDaemonServer(port: number, authToken?: string): {
     try {
       const { id } = req.params;
       const { apiKey } = req.body;
-      if (!PROVIDER_INFO[id as ProviderType]) {
+      if (!isProviderType(id)) {
         res.status(404).json({ error: 'Provider not found' });
         return;
       }
@@ -262,7 +221,7 @@ export function createDaemonServer(port: number, authToken?: string): {
       const config = getConfig();
       const updatedProviders = {
         ...config.providers,
-        [id]: { ...config.providers[id as ProviderType], apiKey: apiKey.trim(), enabled: true },
+        [id]: { ...config.providers[id], apiKey: apiKey.trim(), enabled: true },
       };
       updateConfig({ providers: updatedProviders });
       io.emit('config:updated', getConfig());
@@ -275,7 +234,7 @@ export function createDaemonServer(port: number, authToken?: string): {
   app.delete('/api/providers/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      if (!PROVIDER_INFO[id as ProviderType]) {
+      if (!isProviderType(id)) {
         res.status(404).json({ error: 'Provider not found' });
         return;
       }
@@ -296,13 +255,13 @@ export function createDaemonServer(port: number, authToken?: string): {
   app.post('/api/providers/:id/test', async (req, res) => {
     try {
       const { id } = req.params;
-      if (!PROVIDER_INFO[id as ProviderType]) {
+      if (!isProviderType(id)) {
         res.status(404).json({ error: 'Provider not found' });
         return;
       }
 
       const config = getConfig();
-      const providerConfig = config.providers[id as ProviderType];
+      const providerConfig = config.providers[id];
 
       if (!providerConfig?.apiKey) {
         res.status(400).json({ error: 'No API key configured for this provider' });
@@ -310,7 +269,7 @@ export function createDaemonServer(port: number, authToken?: string): {
       }
 
       // Test the API key by making a simple request
-      const testModel = getModelsForProvider(id as ProviderType)[0];
+      const testModel = getModelsForProvider(id)[0];
       if (!testModel) {
         res.status(400).json({ error: 'No models available for this provider' });
         return;

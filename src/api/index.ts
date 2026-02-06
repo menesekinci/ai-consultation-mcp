@@ -222,6 +222,17 @@ export async function openWebUI(): Promise<void> {
     return;
   }
 
+  try {
+    const config = getConfigManager().getConfig();
+    if (config.autoOpenWebUI === false) {
+      logger.info('Auto-open Web UI disabled by config');
+      return;
+    }
+  } catch {
+    // If config cannot be read, avoid auto-opening browser
+    return;
+  }
+
   // Path to the standalone server script
   const standaloneServerPath = path.join(__dirname, 'standalone-server.js');
 
