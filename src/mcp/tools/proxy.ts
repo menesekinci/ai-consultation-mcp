@@ -199,17 +199,53 @@ export function registerProxyTools(server: McpServer, daemonClient: DaemonClient
         .string()
         .optional()
         .describe('Supporting context: code snippets, error messages, your current approach'),
+      provider: z.string().optional().describe('AI provider (e.g. deepseek, openai)'),
+      model: z.string().optional().describe('Specific model name'),
+      useRag: z.boolean().optional().describe('Include RAG context in consultation'),
       docIds: z.array(z.string().uuid()).optional().describe('Restrict RAG search to these document IDs'),
       docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
       try {
-        const socket = await daemonClient.getSocket();
-        openProxyWebUI(socket).catch(() => {});
-        const result = await handleConsultAgent(socket, args);
+        // Try REST endpoint first
+        const lock = await ensureDaemonRunning();
+        const url = `http://127.0.0.1:${lock.port}/api/consult`;
+        let message = args.question;
+        if (args.context) {
+          message = `${args.question}\n\nContext:\n${args.context}`;
+        }
+        if (args.mode) {
+          message = `[Mode: ${args.mode}] ${message}`;
+        }
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-daemon-token': lock.token,
+          },
+          body: JSON.stringify({
+            message,
+            provider: args.provider,
+            model: args.model,
+            useRag: args.useRag ?? true,
+          }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `Consult request failed: ${res.status}`);
+        }
+        const result = await res.json();
         return toSuccessResult(result);
       } catch (error) {
-        return toErrorResult(error);
+        // Fallback to socket
+        try {
+          const socket = await daemonClient.getSocket();
+          openProxyWebUI(socket).catch(() => {});
+          const result = await handleConsultAgent(socket, args);
+          return toSuccessResult(result);
+        } catch (fallbackError) {
+          return toErrorResult(error);
+        }
       }
     }
   );
@@ -385,9 +421,9 @@ export function registerProxyTools(server: McpServer, daemonClient: DaemonClient
     'rag_add_memory',
     'Add a memory note that will be embedded for RAG search',
     {
-      category: z.enum(['architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other']),
       title: z.string().describe('Short memory title'),
       content: z.string().describe('Memory content'),
+      category: z.enum(['architecture', 'backend', 'db', 'auth', 'config', 'flow', 'other']).optional().describe('Category (defaults to "other")'),
     },
     async (args) => {
       try {

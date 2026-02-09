@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { chunkText, estimateTokenCount } from '../../rag/chunking.js';
-import { embedTexts } from '../../rag/embeddings.js';
+import { embedTexts, checkEmbedServiceHealth, getEmbedUrl } from '../../rag/embeddings.js';
 import {
   createDocument,
   deleteDocument,
@@ -52,6 +52,11 @@ router.get('/memories', (_req: Request, res: Response) => {
 
 router.post('/upload', upload.array('files'), async (req: Request, res: Response) => {
   try {
+    const embedHealth = await checkEmbedServiceHealth();
+    if (!embedHealth.available) {
+      res.status(503).json({ error: 'Embedding service unavailable', url: getEmbedUrl() });
+      return;
+    }
     const files = (req.files as Express.Multer.File[]) || [];
     if (!files.length) {
       res.status(400).json({ error: 'No file uploaded' });
@@ -165,30 +170,42 @@ router.get('/documents/:id/chunks', (req: Request, res: Response) => {
 
 router.post('/reindex', async (_req: Request, res: Response) => {
   try {
+    const embedHealth = await checkEmbedServiceHealth();
+    if (!embedHealth.available) {
+      res.status(503).json({ error: 'Embedding service unavailable', url: getEmbedUrl() });
+      return;
+    }
     const documents = listDocuments();
     if (!documents.length) {
       res.json({ reindexed: 0 });
       return;
     }
 
-    // Simple reindex: reload all chunks and re-embed
+    // Batch reindex: process chunks in batches of 50
     const allChunks = listAllChunks();
-    const texts = allChunks.map((c) => c.content);
-    const embeddingResult = await embedTexts(texts);
+    const BATCH_SIZE = 50;
+    let batches = 0;
 
-    allChunks.forEach((chunk, idx) => {
-      const vector = embeddingResult.vectors[idx];
-      if (vector) {
-        insertEmbedding({
-          chunkId: chunk.id,
-          vector,
-          dim: embeddingResult.dim,
-          model: embeddingResult.model,
-        });
-      }
-    });
+    for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+      const batch = allChunks.slice(i, i + BATCH_SIZE);
+      const texts = batch.map((c) => c.content);
+      const embeddingResult = await embedTexts(texts);
 
-    res.json({ reindexed: allChunks.length });
+      batch.forEach((chunk, idx) => {
+        const vector = embeddingResult.vectors[idx];
+        if (vector) {
+          insertEmbedding({
+            chunkId: chunk.id,
+            vector,
+            dim: embeddingResult.dim,
+            model: embeddingResult.model,
+          });
+        }
+      });
+      batches++;
+    }
+
+    res.json({ reindexed: allChunks.length, batches });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reindex', message: error instanceof Error ? error.message : 'Unknown error' });
   }
@@ -227,12 +244,17 @@ router.post('/search', async (req: Request, res: Response) => {
 
 router.post('/memory', async (req: Request, res: Response) => {
   try {
-    const category = req.body?.category as string | undefined;
+    const embedHealth = await checkEmbedServiceHealth();
+    if (!embedHealth.available) {
+      res.status(503).json({ error: 'Embedding service unavailable', url: getEmbedUrl() });
+      return;
+    }
+    const category = (req.body?.category as string | undefined) || 'other';
     const title = (req.body?.title as string | undefined)?.trim();
     const content = (req.body?.content as string | undefined)?.trim();
 
-    if (!title || !content || !category) {
-      res.status(400).json({ error: 'category, title, and content are required' });
+    if (!title || !content) {
+      res.status(400).json({ error: 'title and content are required' });
       return;
     }
 

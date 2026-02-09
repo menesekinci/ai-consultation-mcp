@@ -44,6 +44,26 @@ export function decodeVector(buffer: Buffer): Float32Array {
   return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
 }
 
+export async function checkEmbedServiceHealth(): Promise<{ available: boolean; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(getEmbedUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts: ['health check'] }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      return { available: false, error: `HTTP ${res.status}` };
+    }
+    return { available: true };
+  } catch (error) {
+    return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   let dot = 0;
   let normA = 0;

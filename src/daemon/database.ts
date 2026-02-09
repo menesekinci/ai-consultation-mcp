@@ -21,6 +21,7 @@ export function initDatabase(): Database.Database {
   // Enable WAL mode for concurrent reads
   db.pragma('journal_mode = WAL');
   db.pragma('busy_timeout = 5000');
+  db.pragma('foreign_keys = ON');
 
   // Create tables
   db.exec(`

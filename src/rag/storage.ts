@@ -200,7 +200,15 @@ export function bulkUpdateDocumentFolders(mappings: Array<{ documentId: string; 
 
 export function deleteDocument(documentId: string): void {
   const db = getDatabase();
-  db.prepare('DELETE FROM documents WHERE id = ?').run(documentId);
+  const del = db.transaction(() => {
+    // Explicit cascade: embeddings → chunks → document
+    db.prepare(
+      `DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)`
+    ).run(documentId);
+    db.prepare('DELETE FROM chunks WHERE document_id = ?').run(documentId);
+    db.prepare('DELETE FROM documents WHERE id = ?').run(documentId);
+  });
+  del();
 }
 
 export function listChunksWithEmbeddings(filters?: {

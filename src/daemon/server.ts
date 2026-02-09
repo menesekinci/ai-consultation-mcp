@@ -4,6 +4,8 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ragRoutes } from '../api/routes/rag.js';
+import { consultRoutes } from '../api/routes/consult.js';
+import { checkEmbedServiceHealth, getEmbedUrl } from '../rag/embeddings.js';
 import {
   registerConfigHandlers,
   registerConversationHandlers,
@@ -90,15 +92,18 @@ export function createDaemonServer(port: number, authToken?: string): {
   app.use(express.static(uiPath));
 
   // REST API endpoints for backward compatibility
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', async (_req, res) => {
+    const embedHealth = await checkEmbedServiceHealth();
     res.json({
       status: 'ok',
       clients: connectedClients.size,
       uptime: process.uptime(),
+      embedService: { available: embedHealth.available, url: getEmbedUrl(), error: embedHealth.error },
     });
   });
 
   app.use('/api/rag', ragRoutes);
+  app.use('/api/consult', consultRoutes);
 
   app.get('/api/config', (_req, res) => {
     try {
