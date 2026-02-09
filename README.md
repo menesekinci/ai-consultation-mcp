@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="banner.png" alt="AI Consultation MCP Banner" width="100%">
+</p>
+
 # Agent Consultation MCP
 
 [![npm version](https://img.shields.io/npm/v/ai-consultation-mcp.svg)](https://www.npmjs.com/package/ai-consultation-mcp)
