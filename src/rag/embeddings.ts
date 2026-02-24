@@ -1,4 +1,4 @@
-const DEFAULT_EMBED_URL = 'http://127.0.0.1:7999/embed';
+const DEFAULT_EMBED_URL = 'http://127.0.0.1:11434';
 
 export interface EmbeddingResult {
   vectors: number[][];
@@ -15,24 +15,32 @@ export async function embedTexts(texts: string[]): Promise<EmbeddingResult> {
     return { vectors: [], dim: 0, model: 'unknown' };
   }
 
-  const res = await fetch(getEmbedUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texts }),
-  });
+  const model = process.env.RAG_EMBED_MODEL || 'nomic-embed-text';
+  const baseUrl = getEmbedUrl();
 
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`Embedding service error (${res.status}): ${msg}`);
-  }
+  const embeddings = await Promise.all(
+    texts.map(async (text) => {
+      const res = await fetch(`${baseUrl}/api/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, prompt: text }),
+      });
 
-  const data = (await res.json()) as EmbeddingResult;
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(`Embedding service error (${res.status}): ${msg}`);
+      }
 
-  if (!Array.isArray(data.vectors)) {
-    throw new Error('Embedding service returned invalid vectors');
-  }
+      const data = (await res.json()) as { embedding: number[] };
+      return data.embedding;
+    })
+  );
 
-  return data;
+  return {
+    vectors: embeddings,
+    dim: embeddings[0]?.length || 0,
+    model,
+  };
 }
 
 export function encodeVector(vector: number[]): Buffer {
@@ -48,10 +56,11 @@ export async function checkEmbedServiceHealth(): Promise<{ available: boolean; e
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(getEmbedUrl(), {
+    const model = process.env.RAG_EMBED_MODEL || 'nomic-embed-text';
+    const res = await fetch(`${getEmbedUrl()}/api/embeddings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texts: ['health check'] }),
+      body: JSON.stringify({ model, prompt: 'health check' }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
