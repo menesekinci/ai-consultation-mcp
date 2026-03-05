@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { chunkText, estimateTokenCount } from '../../rag/chunking.js';
-import { embedTexts, checkEmbedServiceHealth, getEmbedUrl } from '../../rag/embeddings.js';
+import { embedTexts, checkEmbedServiceHealth } from '../../rag/embeddings.js';
 import {
   createDocument,
   deleteDocument,
@@ -54,7 +54,7 @@ router.post('/upload', upload.array('files'), async (req: Request, res: Response
   try {
     const embedHealth = await checkEmbedServiceHealth();
     if (!embedHealth.available) {
-      res.status(503).json({ error: 'Embedding service unavailable', url: getEmbedUrl() });
+      res.status(503).json({ error: 'Embedding service unavailable', model: 'Xenova/all-MiniLM-L6-v2', detail: embedHealth.error });
       return;
     }
     const files = (req.files as Express.Multer.File[]) || [];
@@ -172,7 +172,7 @@ router.post('/reindex', async (_req: Request, res: Response) => {
   try {
     const embedHealth = await checkEmbedServiceHealth();
     if (!embedHealth.available) {
-      res.status(503).json({ error: 'Embedding service unavailable', url: getEmbedUrl() });
+      res.status(503).json({ error: 'Embedding service unavailable', model: 'Xenova/all-MiniLM-L6-v2', detail: embedHealth.error });
       return;
     }
     const documents = listDocuments();
@@ -246,7 +246,7 @@ router.post('/memory', async (req: Request, res: Response) => {
   try {
     const embedHealth = await checkEmbedServiceHealth();
     if (!embedHealth.available) {
-      res.status(503).json({ error: 'Embedding service unavailable', url: getEmbedUrl() });
+      res.status(503).json({ error: 'Embedding service unavailable', model: 'Xenova/all-MiniLM-L6-v2', detail: embedHealth.error });
       return;
     }
     const category = (req.body?.category as string | undefined) || 'other';

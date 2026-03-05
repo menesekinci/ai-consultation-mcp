@@ -12,15 +12,13 @@ import {
   printInstallSummary,
   uninstallFromAllTools,
   printUninstallSummary,
-  SUPPORTED_TOOLS,
 } from './installer/index.js';
 import { createDaemonClient } from './proxy/daemon-client.js';
 import { registerProxyTools } from './mcp/tools/proxy.js';
 import { registerLegacyTools } from './mcp/tools/legacy.js';
 
 function parseArgs(): {
-  mode: 'mcp' | 'config' | 'install' | 'uninstall' | 'daemon' | 'legacy';
-  port?: number;
+  mode: 'mcp' | 'init' | 'install' | 'uninstall' | 'daemon' | 'legacy';
 } {
   const args = process.argv.slice(2);
 
@@ -40,50 +38,36 @@ function parseArgs(): {
     return { mode: 'legacy' };
   }
 
-  if (args.includes('--config') || args.includes('config') || args.includes('-c')) {
-    const portIndex = args.findIndex((a) => a === '--port' || a === '-p');
-    let port: number | undefined;
-    if (portIndex !== -1 && args[portIndex + 1]) {
-      port = parseInt(args[portIndex + 1], 10);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        console.error('Invalid port number. Using default.');
-        port = undefined;
-      }
-    }
-    return { mode: 'config', port };
+  if (args.includes('--init') || args.includes('init')) {
+    return { mode: 'init' };
   }
 
   if (args.includes('--help') || args.includes('-h')) {
-    const toolNames = SUPPORTED_TOOLS.map((t) => t.name).join(', ');
     console.log(`
 AI Consultation MCP - Get second opinions from DeepSeek and OpenAI models
 
 Usage:
-  npx ai-consultation-mcp             Start MCP proxy (connects to central daemon)
-  npx ai-consultation-mcp --install   Auto-detect & install to all AI tools
-  npx ai-consultation-mcp --uninstall Remove MCP from all AI tools
-  npx ai-consultation-mcp --config    Open configuration UI in browser
-  npx ai-consultation-mcp --daemon    Start the central daemon directly
-  npx ai-consultation-mcp --legacy    Use legacy standalone mode (no daemon)
-  npx ai-consultation-mcp --help      Show this help message
+  ai-consultation-mcp           Start MCP proxy (connects to central daemon)
+  ai-consultation-mcp --install Auto-detect & install to all AI tools
+  ai-consultation-mcp --init    Initialize config (loads env variables)
+  ai-consultation-mcp --daemon  Start the central daemon directly
+  ai-consultation-mcp --help    Show this help message
 
 Options:
-  --install, -i        Auto-detect installed AI tools and add MCP to each
-  --uninstall, -u      Remove MCP configuration from all AI tools
-  --config, -c         Open configuration UI to manage API keys
-  --daemon, -d         Start central daemon (auto-started by proxy if needed)
-  --legacy             Use legacy standalone mode (bypasses daemon)
-  --port <number>, -p  Set port for config UI (default: 3456)
-  --help, -h           Show this help message
+  --install, -i    Auto-detect installed AI tools and add MCP to each
+  --init          Load config from environment variables
+  --daemon, -d    Start central daemon (auto-started by proxy if needed)
+  --legacy        Use legacy standalone mode (no daemon)
+  --help, -h      Show this help message
 
-Supported AI Tools:
-  ${toolNames}
+Environment Variables:
+  DEEPSEEK_API_KEY   Your DeepSeek API key
+  OPENAI_API_KEY     Your OpenAI API key
 
 Quick Start:
-  1. npx ai-consultation-mcp --install  (auto-detects all tools)
-  2. Restart your AI tools to load the MCP
-  3. npx ai-consultation-mcp --config   (configure API key)
-  4. Start using in any configured tool!
+  1. export DEEPSEEK_API_KEY=your_key
+  2. ai-consultation-mcp --install
+  3. Restart your AI tools
 
 Supported Models:
   - deepseek-reasoner (default) - Deep reasoning for complex tasks
@@ -97,12 +81,6 @@ Consultation Modes:
   - validatePlan    - Implementation plan review and validation
   - explainConcept  - Learn concepts with examples and analogies
   - general         - General second opinion (default)
-
-Architecture:
-  The MCP now uses a central daemon architecture for real-time sync:
-  - Daemon: Central server with SQLite storage and WebSocket
-  - Proxy: Lightweight stdio ↔ WebSocket bridge for each IDE
-  - Web UI: Real-time updates across all connected tools
 `);
     process.exit(0);
   }
@@ -146,7 +124,7 @@ async function startLegacyMode(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const { mode, port } = parseArgs();
+  const { mode } = parseArgs();
 
   if (mode === 'install') {
     console.log('🔧 AI Consultation MCP - Multi-Tool Installer\n');
@@ -164,8 +142,9 @@ async function main(): Promise<void> {
         if (error instanceof Error) {
           console.log(`   Error: ${error.message}`);
         }
-        console.log('\n💡 To configure API keys later, run:');
-        console.log('   npx ai-consultation-mcp --config\n');
+        console.log('\n💡 To configure API keys, set environment variables:');
+        console.log('   export DEEPSEEK_API_KEY=your_key');
+        console.log('   export OPENAI_API_KEY=your_key\n');
         process.exit(0);
       }
     } else {
@@ -219,11 +198,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (mode === 'config') {
+  if (mode === 'init') {
     try {
-      await startConfigUI({ port, openBrowser: true });
+      await startConfigUI({ openBrowser: false });
+      console.log('\n✅ Configuration loaded from environment variables');
     } catch (error) {
-      console.error('Failed to start config UI:', error instanceof Error ? error.message : error);
+      console.error('Failed to initialize config:', error instanceof Error ? error.message : error);
       process.exit(1);
     }
     return;

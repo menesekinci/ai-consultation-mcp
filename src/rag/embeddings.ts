@@ -1,4 +1,19 @@
-const DEFAULT_EMBED_URL = 'http://127.0.0.1:11434';
+import { pipeline, env } from '@xenova/transformers';
+
+env.allowLocalModels = true;
+
+let embedPipeline: Awaited<ReturnType<typeof pipeline>> | null = null;
+
+const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
+
+async function getPipeline() {
+  if (!embedPipeline) {
+    embedPipeline = await pipeline('feature-extraction', MODEL_NAME, {
+      quantized: true,
+    });
+  }
+  return embedPipeline;
+}
 
 export interface EmbeddingResult {
   vectors: number[][];
@@ -6,40 +21,27 @@ export interface EmbeddingResult {
   model: string;
 }
 
-export function getEmbedUrl(): string {
-  return process.env.RAG_EMBED_URL || DEFAULT_EMBED_URL;
-}
-
 export async function embedTexts(texts: string[]): Promise<EmbeddingResult> {
   if (!texts.length) {
-    return { vectors: [], dim: 0, model: 'unknown' };
+    return { vectors: [], dim: 0, model: MODEL_NAME };
   }
 
-  const model = process.env.RAG_EMBED_MODEL || 'nomic-embed-text';
-  const baseUrl = getEmbedUrl();
+  const pipe = await getPipeline();
 
-  const embeddings = await Promise.all(
+  const vectors: number[][] = await Promise.all(
     texts.map(async (text) => {
-      const res = await fetch(`${baseUrl}/api/embeddings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt: text }),
-      });
-
-      if (!res.ok) {
-        const msg = await res.text();
-        throw new Error(`Embedding service error (${res.status}): ${msg}`);
-      }
-
-      const data = (await res.json()) as { embedding: number[] };
-      return data.embedding;
+      const output = await pipe(text, {
+        pooling: 'mean',
+        normalize: true,
+      } as any) as { data: Float32Array };
+      return Array.from(output.data);
     })
   );
 
   return {
-    vectors: embeddings,
-    dim: embeddings[0]?.length || 0,
-    model,
+    vectors,
+    dim: vectors[0]?.length || 0,
+    model: MODEL_NAME,
   };
 }
 
@@ -54,19 +56,7 @@ export function decodeVector(buffer: Buffer): Float32Array {
 
 export async function checkEmbedServiceHealth(): Promise<{ available: boolean; error?: string }> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const model = process.env.RAG_EMBED_MODEL || 'nomic-embed-text';
-    const res = await fetch(`${getEmbedUrl()}/api/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt: 'health check' }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!res.ok) {
-      return { available: false, error: `HTTP ${res.status}` };
-    }
+    await getPipeline();
     return { available: true };
   } catch (error) {
     return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -88,4 +78,8 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
 
   if (normA === 0 || normB === 0) return 0;
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+export function getEmbedUrl(): string {
+  return '';
 }

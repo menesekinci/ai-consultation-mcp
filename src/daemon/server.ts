@@ -1,11 +1,9 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { ragRoutes } from '../api/routes/rag.js';
 import { consultRoutes } from '../api/routes/consult.js';
-import { checkEmbedServiceHealth, getEmbedUrl } from '../rag/embeddings.js';
+import { checkEmbedServiceHealth } from '../rag/embeddings.js';
 import {
   registerConfigHandlers,
   registerConversationHandlers,
@@ -27,9 +25,6 @@ import {
   maskKey,
 } from '../api/shared/providers.js';
 import { buildChatHistoryResponse } from '../api/shared/chat.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 interface ConnectedClient {
   id: string;
@@ -87,10 +82,6 @@ export function createDaemonServer(port: number, authToken?: string): {
     });
   }
 
-  // Serve static UI files
-  const uiPath = path.join(__dirname, '..', 'ui');
-  app.use(express.static(uiPath));
-
   // REST API endpoints for backward compatibility
   app.get('/api/health', async (_req, res) => {
     const embedHealth = await checkEmbedServiceHealth();
@@ -98,7 +89,7 @@ export function createDaemonServer(port: number, authToken?: string): {
       status: 'ok',
       clients: connectedClients.size,
       uptime: process.uptime(),
-      embedService: { available: embedHealth.available, url: getEmbedUrl(), error: embedHealth.error },
+      embedService: { available: embedHealth.available, model: 'Xenova/all-MiniLM-L6-v2', error: embedHealth.error },
     });
   });
 
@@ -307,8 +298,8 @@ export function createDaemonServer(port: number, authToken?: string): {
       res.status(404).json({ error: 'Not found', path: req.path });
       return;
     }
-    // For other routes, serve SPA
-    res.sendFile(path.join(uiPath, 'index.html'));
+    // No UI available
+    res.status(404).json({ error: 'Not found', message: 'API only - no UI available' });
   });
 
   // Socket.io connection handling

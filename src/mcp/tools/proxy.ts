@@ -1,12 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { glob } from 'glob';
 import { z } from 'zod';
 import type { Socket } from 'socket.io-client';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getTitleFromPath, isDuplicateTitle } from '../../rag/dedupe.js';
 import { inferMimeType } from '../../rag/ingest.js';
 import { CONSULTATION_MODES } from '../../config/index.js';
-import { ensureDaemonRunning, openWebUI as openProxyWebUI } from '../../proxy/daemon-client.js';
+import { ensureDaemonRunning } from '../../proxy/daemon-client.js';
 import {
   handleConsultAgent,
   handleContinueConversation,
@@ -44,6 +45,23 @@ async function callDaemonRagUpload(input: {
   const lock = await ensureDaemonRunning();
   const baseUrl = `http://127.0.0.1:${lock.port}/api/rag`;
 
+  // Expand glob patterns
+  const expandedPaths: string[] = [];
+  for (const rawPath of input.paths) {
+    const resolvedPath = path.isAbsolute(rawPath)
+      ? rawPath
+      : path.resolve(process.cwd(), rawPath);
+    
+    // Check if it's a glob pattern
+    if (resolvedPath.includes('*')) {
+      const matches = await glob(resolvedPath, { nodir: true });
+      expandedPaths.push(...matches);
+    } else {
+      expandedPaths.push(resolvedPath);
+    }
+  }
+
+  // Get existing documents
   const listRes = await fetch(`${baseUrl}/documents`, {
     headers: {
       'Content-Type': 'application/json',
@@ -64,10 +82,7 @@ async function callDaemonRagUpload(input: {
   const queued: Array<{ title: string; sourcePath: string }> = [];
   const form = new FormData();
 
-  for (const rawPath of input.paths) {
-    const resolvedPath = path.isAbsolute(rawPath)
-      ? rawPath
-      : path.resolve(process.cwd(), rawPath);
+  for (const resolvedPath of expandedPaths) {
     const title = getTitleFromPath(resolvedPath);
     const normalizedTitle = title.trim().toLowerCase();
 
@@ -240,8 +255,7 @@ export function registerProxyTools(server: McpServer, daemonClient: DaemonClient
         // Fallback to socket
         try {
           const socket = await daemonClient.getSocket();
-          openProxyWebUI(socket).catch(() => {});
-          const result = await handleConsultAgent(socket, args);
+        const result = await handleConsultAgent(socket, args);
           return toSuccessResult(result);
         } catch (fallbackError) {
           return toErrorResult(error);
@@ -262,7 +276,6 @@ export function registerProxyTools(server: McpServer, daemonClient: DaemonClient
     async (args) => {
       try {
         const socket = await daemonClient.getSocket();
-        openProxyWebUI(socket).catch(() => {});
         const result = await handleContinueConversation(socket, args);
         return toSuccessResult(result);
       } catch (error) {
@@ -280,7 +293,6 @@ export function registerProxyTools(server: McpServer, daemonClient: DaemonClient
     async (args) => {
       try {
         const socket = await daemonClient.getSocket();
-        openProxyWebUI(socket).catch(() => {});
         const result = await handleEndConversation(socket, args);
         return toSuccessResult(result);
       } catch (error) {

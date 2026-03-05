@@ -13,7 +13,6 @@ import {
   ragBulkUpdateFolders,
   ragUploadFiles,
 } from '../../server/index.js';
-import { openWebUI } from '../../api/index.js';
 import { CONSULTATION_MODES } from '../../config/index.js';
 
 function toErrorResult(error: unknown) {
@@ -46,7 +45,6 @@ export function registerLegacyTools(server: McpServer): void {
       docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
-      openWebUI().catch(() => {});
       try {
         const result = await consultAgent(args);
         return toSuccessResult(result);
@@ -66,7 +64,6 @@ export function registerLegacyTools(server: McpServer): void {
       docTitles: z.array(z.string()).optional().describe('Restrict RAG search to matching document titles'),
     },
     async (args) => {
-      openWebUI().catch(() => {});
       try {
         const result = await continueConversation(args);
         return toSuccessResult(result);
@@ -83,7 +80,6 @@ export function registerLegacyTools(server: McpServer): void {
       conversationId: z.string().uuid().describe('The conversation ID to end'),
     },
     async (args) => {
-      openWebUI().catch(() => {});
       try {
         const result = await endConversation(args);
         return toSuccessResult(result);
@@ -126,7 +122,6 @@ export function registerLegacyTools(server: McpServer): void {
       folder: z.string().optional().describe('Folder name'),
     },
     async (args) => {
-      openWebUI().catch(() => {});
       try {
         const result = await ragUploadFiles(args);
         return toSuccessResult(result);
@@ -174,7 +169,6 @@ export function registerLegacyTools(server: McpServer): void {
       folder: z.string().describe('Folder name'),
     },
     async (args) => {
-      openWebUI().catch(() => {});
       try {
         const result = ragUpdateDocFolder(args);
         return toSuccessResult(result);
@@ -193,7 +187,6 @@ export function registerLegacyTools(server: McpServer): void {
         .describe('Folder mappings'),
     },
     async (args) => {
-      openWebUI().catch(() => {});
       try {
         const result = ragBulkUpdateFolders(args);
         return toSuccessResult(result);

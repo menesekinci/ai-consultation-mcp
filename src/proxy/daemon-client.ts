@@ -5,8 +5,6 @@ import fs from 'fs';
 import os from 'os';
 import { fileURLToPath } from 'url';
 
-let browserOpened = false;
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -170,59 +168,6 @@ export function createDaemonClient(): {
       }
     },
   };
-}
-
-/**
- * Open Web UI in browser (only once per session, if enabled in config)
- */
-export async function openWebUI(socket?: Socket): Promise<void> {
-  if (browserOpened) {
-    return;
-  }
-
-  // Check config if socket is provided
-  if (socket) {
-    try {
-      const config = await new Promise<{ autoOpenWebUI?: boolean }>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Config timeout')), 2000);
-        socket.emit('config:get', (response: { autoOpenWebUI?: boolean }) => {
-          clearTimeout(timeout);
-          if (response) {
-            resolve(response);
-          } else {
-            resolve({ autoOpenWebUI: false }); // Default to disabled if config fetch fails
-          }
-        });
-      });
-
-      if (config.autoOpenWebUI === false) {
-        return; // User disabled auto-open
-      }
-    } catch {
-      // If config check fails, do not auto-open browser
-      return;
-    }
-  }
-
-  const lock = await ensureDaemonRunning();
-  const url = buildWebUIUrl(lock.port);
-
-  browserOpened = true;
-
-  // Platform-specific browser open using spawn (safer than exec)
-  const platform = process.platform;
-
-  try {
-    if (platform === 'darwin') {
-      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
-    } else if (platform === 'win32') {
-      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
-    } else {
-      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
-    }
-  } catch (error) {
-    console.error('[Proxy] Failed to open browser:', error instanceof Error ? error.message : 'Unknown error');
-  }
 }
 
 export function buildWebUIUrl(port: number): string {
