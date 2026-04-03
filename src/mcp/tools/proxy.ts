@@ -460,4 +460,44 @@ export function registerProxyTools(server: McpServer, daemonClient: DaemonClient
       }
     }
   );
+
+  server.tool(
+    'rag_delete_document',
+    'Delete a RAG document and all its chunks/embeddings',
+    { documentId: z.string().uuid().describe('Document ID to delete') },
+    async (args) => {
+      try {
+        const result = await callDaemonRag(`/documents/${args.documentId}`, { method: 'DELETE' });
+        return toSuccessResult(result);
+      } catch (error) {
+        return toErrorResult(error);
+      }
+    }
+  );
+
+  server.tool(
+    'rag_bulk_delete_documents',
+    'Delete multiple RAG documents at once',
+    { documentIds: z.array(z.string().uuid()).min(1).describe('Array of document IDs to delete') },
+    async (args) => {
+      try {
+        const results: Array<{ documentId: string; success: boolean; error?: string }> = [];
+        for (const id of args.documentIds) {
+          try {
+            await callDaemonRag(`/documents/${id}`, { method: 'DELETE' });
+            results.push({ documentId: id, success: true });
+          } catch (error) {
+            results.push({
+              documentId: id,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+        return toSuccessResult({ deleted: results.filter((r) => r.success).length, results });
+      } catch (error) {
+        return toErrorResult(error);
+      }
+    }
+  );
 }
