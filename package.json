@@ -1,6 +1,6 @@
 {
   "name": "ai-consultation-mcp",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "type": "module",
   "description": "MCP server for AI consultation with local RAG support",
   "main": "./dist/index.js",
